@@ -47,6 +47,8 @@ on this phone:
 > [`AcpiTables/apollo/`](AcpiTables/apollo/). Compiles with 0 errors / 0 warnings. Remaining
 > work is on-device validation + a Novatek touch driver + PMIC/Wi-Fi/audio nodes.
 
+**New to this? Start with the [beginner's guide](docs/noob-guide.md).**
+
 See [`docs/hardware-apollo.md`](docs/hardware-apollo.md) for the full chip/firmware map,
 [`docs/acpi-extension.md`](docs/acpi-extension.md) for the per-peripheral ACPI spec and resolved
 values, [`docs/driver-pack.md`](docs/driver-pack.md) for the Windows driver pack (real Kona INFs),
