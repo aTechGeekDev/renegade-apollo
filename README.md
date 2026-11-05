@@ -1,44 +1,61 @@
 # renegade-apollo
 
-**Goal:** a [Renegade Project](https://renegade-project.tech) / Windows-on-ARM (UEFI) device port
-for the **Xiaomi Mi 10T / Mi 10T Pro / Redmi K30S Ultra** (`apollo`, Snapdragon 865 / SM8250).
+Workspace for completing the **[Renegade Project](https://renegade-project.tech) / Windows-on-ARM**
+port on the **Xiaomi Mi 10T / Mi 10T Pro / Redmi K30S Ultra** (`apollo`, Snapdragon 865 / SM8250),
+reusing the verified hardware work from the sibling [`ios-apollo`](https://github.com/aTechGeekDev/ios-apollo)
+project.
 
-This repo is the device-specific half of a Windows-on-ARM port: an **EDK2/UEFI firmware**
-and **ACPI tables** for `apollo`, plus the driver-pack and install notes needed to boot
-**ARM64 Windows 11** on the phone via `fastboot boot`.
+> [!IMPORTANT]
+> **Renegade already has an apollo port.** The upstream firmware
+> [`edk2-porting/edk2-msm`](https://github.com/edk2-porting/edk2-msm) ships a complete device
+> package at `Platform/Xiaomi/sm8250/apollo.*` (ACPI tables, memory map, build config). So this
+> is **not** a from-scratch port. This repo is the workspace for **finishing** that port:
+> extending its ACPI and assembling the Windows ARM64 driver pack, using the `ios-apollo`
+> hardware map — then sending improvements upstream.
 
 > [!WARNING]
-> Experimental bring-up, not a daily driver. A Windows-on-ARM port replaces the normal boot
-> chain and can brick a device if a wrong image is flashed permanently. During bring-up
-> **nothing is flashed** — the UEFI is started with a temporary `fastboot boot`, exactly like
-> the sibling [`ios-apollo`](https://github.com/aTechGeekDev/ios-apollo) project.
+> Experimental. During bring-up **nothing is flashed permanently** — the UEFI is started with a
+> temporary `fastboot boot`, as in `ios-apollo`.
 
 ---
 
-## Why this repo exists and what it reuses
+## Where things stand
 
-The hardware bring-up work from [`ios-apollo`](https://github.com/aTechGeekDev/ios-apollo)
-(iOS 16 / XNU on the same phone) does **not** port over as code — XNU kernel patches and iOS
-dylib shims are a different world from Windows ACPI + `.sys` drivers. What *does* carry over,
-and what makes this port realistic, is the **verified hardware map** of `apollo`: every chip,
-its firmware blob, the bus it sits on, panel timings, PMIC layout. That map is in
-[`docs/hardware-apollo.md`](docs/hardware-apollo.md) and feeds directly into the ACPI tables
-and the choice of Windows drivers.
+The upstream apollo port is at **early bring-up**: its device ACPI covers the **8 CPU cores, UFS
+storage, and power/idle states (PEP/LPI)**; the SoC-common SM8250 layer provides USB and core
+peripherals; the display comes from the bootloader framebuffer (1080×2400). That is enough to
+**boot Windows 11 to the desktop with display, storage and USB**.
 
-The plan and milestones are in [`docs/porting-plan.md`](docs/porting-plan.md).
+The device-specific long tail is thin or missing — and that is exactly what `ios-apollo` verified
+on this phone:
+
+| Peripheral | apollo chip (from ios-apollo) | Upstream Renegade status | Where our work helps |
+| --- | --- | --- | --- |
+| CPU / storage / power | SM8250, UFS | ✅ In ACPI | — |
+| Display (framebuffer) | 1080×2400 panel | ✅ Bootloader handoff | panel/backlight detail later |
+| USB | SM8250 | ✅ SoC-common | — |
+| Touch | Novatek NT36675 (SPI) | ❌ to verify / add | ✅ bus + firmware known |
+| Wi-Fi + BT | QCA6390 | ❌ to verify / add | ✅ bring-up known |
+| Audio | WCD938x + 2× CS35L41 | ❌ | ✅ routing + tuning known |
+| Haptics | AW8697 (I2C) | ❌ | ✅ |
+| Charger / battery | PM8150B | ❌ | ✅ |
+| GPU accel | Adreno 650 | driver-pack | ✅ firmware known |
+| Sensors | QC sensor hub (SLPI) | ❌ | partial |
+
+See [`docs/hardware-apollo.md`](docs/hardware-apollo.md) for the full chip/firmware map and
+[`docs/porting-plan.md`](docs/porting-plan.md) for the plan.
 
 ---
 
-## Status
+## Plan
 
-| Area | Status |
-| --- | --- |
-| Hardware reference (from `ios-apollo`) | ✅ Captured (`docs/hardware-apollo.md`) |
-| EDK2 / UEFI platform package for apollo | ❌ Not started |
-| ACPI tables (DSDT/SSDT) | ❌ Not started |
-| Windows ARM64 driver pack (SM8250) | ❌ Not started |
-| First `fastboot boot` of UEFI to a UEFI shell | ❌ Not started |
-| Windows 11 installer boot | ❌ Not started |
+1. **Build the stock apollo UEFI** from `edk2-msm` (`./build.sh -d apollo -b`) and boot Windows 11
+   on the phone — baseline.
+2. **Extend the apollo ACPI** with the device-specific peripherals above, mining `ios-apollo`'s
+   `NOTES.md` for register-level detail (bases, GPIO, clocks, buses).
+3. **Assemble the Windows ARM64 driver pack** — base [`WOA-Project/windows_silicon_qcom_kona`](https://github.com/WOA-Project/windows_silicon_qcom_kona)
+   (SD865 "Kona") plus device specifics; firmware blobs via the `ios-apollo` puller scripts.
+4. **Send improvements upstream** to `edk2-porting/edk2-msm`.
 
 ---
 
@@ -46,10 +63,10 @@ The plan and milestones are in [`docs/porting-plan.md`](docs/porting-plan.md).
 
 | Path | What's inside |
 | --- | --- |
-| `docs/hardware-apollo.md` | The apollo hardware map reused from `ios-apollo` |
-| `docs/porting-plan.md` | The EDK2 → ACPI → driver-pack roadmap and milestones |
-| `Platform/` | The EDK2/UEFI platform package for apollo (to be added) |
-| `AcpiTables/` | Device-specific ACPI tables (to be added) |
+| `docs/hardware-apollo.md` | apollo hardware map reused from `ios-apollo` |
+| `docs/porting-plan.md` | the completion plan and the cloud-vs-PC split |
+| `AcpiTables/` | WIP ACPI additions before they go upstream |
+| `Platform/` | scratch / notes on the upstream apolloPkg |
 
 ---
 
