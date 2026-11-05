@@ -42,7 +42,10 @@ on this phone:
 | GPU accel | Adreno 650 | driver-pack | ✅ firmware known |
 | Sensors | QC sensor hub (SLPI) | ❌ | partial |
 
-See [`docs/hardware-apollo.md`](docs/hardware-apollo.md) for the full chip/firmware map and
+See [`docs/hardware-apollo.md`](docs/hardware-apollo.md) for the full chip/firmware map,
+[`docs/acpi-extension.md`](docs/acpi-extension.md) for the per-peripheral ACPI spec (verified
+apollo wiring + a draft touchscreen node in [`AcpiTables/apollo/touch.asl`](AcpiTables/apollo/touch.asl)),
+[`docs/driver-pack.md`](docs/driver-pack.md) for the Windows driver pack, and
 [`docs/porting-plan.md`](docs/porting-plan.md) for the plan.
 
 ---
@@ -64,8 +67,10 @@ See [`docs/hardware-apollo.md`](docs/hardware-apollo.md) for the full chip/firmw
 | Path | What's inside |
 | --- | --- |
 | `docs/hardware-apollo.md` | apollo hardware map reused from `ios-apollo` |
+| `docs/acpi-extension.md` | per-peripheral ACPI spec (verified wiring → ASL → driver) |
+| `docs/driver-pack.md` | SD865 "Kona" Windows driver-pack mapping |
 | `docs/porting-plan.md` | the completion plan and the cloud-vs-PC split |
-| `AcpiTables/` | WIP ACPI additions before they go upstream |
+| `AcpiTables/apollo/` | draft ACPI nodes before they go upstream (`touch.asl`) |
 | `Platform/` | scratch / notes on the upstream apolloPkg |
 
 ---
