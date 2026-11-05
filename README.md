@@ -42,10 +42,15 @@ on this phone:
 | GPU accel | Adreno 650 | driver-pack | ✅ firmware known |
 | Sensors | QC sensor hub (SLPI) | ❌ | partial |
 
+> **Progress (2026-11):** apollo now has an **`iasl`-validated ACPI node set** (GPIO, SPI/UART
+> buses, touch, Bluetooth, buttons) with real SM8250 register/IRQ values, in
+> [`AcpiTables/apollo/`](AcpiTables/apollo/). Compiles with 0 errors / 0 warnings. Remaining
+> work is on-device validation + a Novatek touch driver + PMIC/Wi-Fi/audio nodes.
+
 See [`docs/hardware-apollo.md`](docs/hardware-apollo.md) for the full chip/firmware map,
-[`docs/acpi-extension.md`](docs/acpi-extension.md) for the per-peripheral ACPI spec (verified
-apollo wiring + a draft touchscreen node in [`AcpiTables/apollo/touch.asl`](AcpiTables/apollo/touch.asl)),
-[`docs/driver-pack.md`](docs/driver-pack.md) for the Windows driver pack, and
+[`docs/acpi-extension.md`](docs/acpi-extension.md) for the per-peripheral ACPI spec and resolved
+values, [`docs/driver-pack.md`](docs/driver-pack.md) for the Windows driver pack (real Kona INFs),
+[`docs/install-runbook.md`](docs/install-runbook.md) for the end-to-end flash/install steps, and
 [`docs/porting-plan.md`](docs/porting-plan.md) for the plan.
 
 ---
@@ -68,9 +73,10 @@ apollo wiring + a draft touchscreen node in [`AcpiTables/apollo/touch.asl`](Acpi
 | --- | --- |
 | `docs/hardware-apollo.md` | apollo hardware map reused from `ios-apollo` |
 | `docs/acpi-extension.md` | per-peripheral ACPI spec (verified wiring → ASL → driver) |
-| `docs/driver-pack.md` | SD865 "Kona" Windows driver-pack mapping |
+| `docs/driver-pack.md` | SD865 "Kona" Windows driver-pack mapping (real INF names) |
+| `docs/install-runbook.md` | end-to-end flash/install steps (PC + phone) |
 | `docs/porting-plan.md` | the completion plan and the cloud-vs-PC split |
-| `AcpiTables/apollo/` | draft ACPI nodes before they go upstream (`touch.asl`) |
+| `AcpiTables/apollo/` | iasl-validated ACPI nodes: `qcgpio` `buses` `touch` `wcnss_bt` `cust_arraybutton` (+ `dsdt-apollo-ext.asl` test wrapper) |
 | `Platform/` | scratch / notes on the upstream apolloPkg |
 
 ---

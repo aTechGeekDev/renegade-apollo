@@ -67,3 +67,32 @@ or a DuoWOA/SurfaceDuo-style SM8250 reference) cross-checked against `sm8250.dts
 4. Compile with `iasl` (apollo uses `USE_IASL=true`); fix macro/syntax.
 5. Build the apollo UEFI (`build.sh -d apollo`) and test on-device, one peripheral at a time.
 6. PR to `edk2-porting/edk2-msm`.
+
+---
+
+## Status: resolved & iasl-validated (2026-11)
+
+The SoC-fixed blanks are now filled from `sm8250.dtsi`, and the node set **compiles cleanly**
+(`iasl`: 0 errors, 0 warnings; the 14 remarks are the same cosmetic ones upstream `ufs.asl`
+produces). Written to [`../AcpiTables/apollo/`](../AcpiTables/apollo/); wire into the upstream
+DSDT per [`install-runbook.md`](install-runbook.md) §3.
+
+| Node | File | _HID | Resources (resolved) | Source |
+| --- | --- | --- | --- | --- |
+| TLMM GPIO | `qcgpio.asl` | `QCOM0217` | mem `0x0F100000`/`0xC00000`, IRQ **240** (GIC 208+32), 180 pins | sm8250.dtsi `pinctrl@f100000` |
+| SPI (touch) | `buses.asl` SPI5 | `QCOM021E` | mem `0x994000`/`0x4000`, IRQ **638** (GIC 606+32) | sm8250.dtsi `spi@994000` + ios-apollo |
+| UART (BT) | `buses.asl` UAR6 | `QCOM0236` | mem `0x998000`/`0x4000`, IRQ **639** (GIC 607+32) | sm8250.dtsi `serial@998000` = SE6 |
+| Touch | `touch.asl` | NVT (TODO) | SPI→SPI5 10 MHz, GpioInt gpio39, GpioIo gpio38 | ios-apollo 0082-0094 |
+| Bluetooth | `wcnss_bt.asl` | `QCOM02B5` | UART→UAR6, 3 Mbaud, HW flow | ios-apollo 0136-0145 |
+| Buttons | `cust_arraybutton.asl` | `ACPI0011` | GpioInt→PM01 (pwr/vol) | sdm845 ref + PM8150 |
+
+**ACPI convention `Interrupt{N}` = `GIC_SPI (N-32)`** — the rule used throughout (confirmed
+against the existing sdm845 nodes).
+
+### Still open (need the phone or a PMIC node)
+- **Touch driver**: ACPI ready, but the Novatek NT36675 needs a non-Kona driver (see
+  `driver-pack.md`); and the touch `_HID` must match whatever driver is chosen.
+- **PMIC node** (`\_SB.PM01`, `pmic_core.asl`): the buttons reference it; charger/battery
+  (PM8150B over SPMI `0x0C440000`) build on it. Next ASL to write.
+- **Wi-Fi** (QCA6390 over PCIe0 `0x01C00000`) and **audio** (LPASS/SoundWire) — larger nodes.
+- All values above still need **on-device validation** (one peripheral per boot).

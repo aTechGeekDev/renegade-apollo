@@ -4,6 +4,7 @@ Conf/
 *.fd
 *.efi
 *.img
+*.aml
 
 # Firmware and vendor blobs — never commit (pulled from the device / vendor)
 *.bin
