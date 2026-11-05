@@ -1,0 +1,38 @@
+# Build output
+Build/
+Conf/
+*.fd
+*.efi
+*.img
+
+# Firmware and vendor blobs — never commit (pulled from the device / vendor)
+*.bin
+*.mbn
+*.mdt
+*.b0*
+*.elf
+*.tlv
+*.fw
+*.ihex
+research/
+firmware/
+blobs/
+
+# Windows driver pack / images — obtained by the user, not distributed
+*.sys
+*.inf
+*.cat
+*.wim
+*.vhdx
+*.iso
+drivers/
+
+# Device dumps, backups, logs, serials — keep out of git
+backup/
+dumps/
+logs/
+*.log
+
+# Editor / OS
+.DS_Store
+*.swp
