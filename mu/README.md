@@ -1,0 +1,21 @@
+# apollo on Mu-Silicium
+
+Windows on SM8250 is booted with [Mu-Silicium](https://github.com/Project-Silicium/Mu-Silicium) (alioth and
+pipa: Windows boot and internal storage working); edk2-msm's SM8250 devices never got past stub DSDTs and
+apollo stops there at `INACCESSIBLE_BOOT_DEVICE` (see `../uefi/apollo/README.md`). This folder adds apollo
+to a Mu-Silicium checkout.
+
+| Piece | Source | apollo changes |
+| --- | --- | --- |
+| `Platforms/Xiaomi/apolloPkg` | Silicium `aliothPkg` (Poco F3) | `SOC_TYPE 0` (SM8250), apollo SMBIOS, no Qualcomm charger drivers |
+| Firmware binaries | Silicium `Binaries/alioth` (Xiaomi's shared Kona XBL; it carries apollo's `Panel_J3S` config) | none yet; apollo's own `xbl` can replace them later (UEFIReader) |
+| `Resources/Configs/apollo.toml` | same as pipa/alioth | none |
+| `Resources/DTBs/apollo.dtb` | apollo stock DT from edk2-msm (`board-id 0x2a`) | none |
+| ACPI | `make-apollo-dsdt.py` on pipa's DSDT (`--drop PRTC --no-thermal`) + Silicium Kona APIC/DBG2/FACP/GTDT/PPTT + common SSDT | as tested with edk2-msm |
+
+```sh
+bash install-apollo.sh                      # MU=~/Mu-Silicium EDK=~/edk2-msm by default
+cd ~/Mu-Silicium && python3 build_uefi.py -d apollo
+fastboot boot Mu-apollo.img
+```
+The Windows install and its WOA-Project Kona drivers stay as they are: the DSDT uses the same QCOM25xx IDs.
