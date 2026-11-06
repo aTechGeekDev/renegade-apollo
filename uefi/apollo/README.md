@@ -135,6 +135,15 @@ sed -i -e 's/{"EnableUfsIOC", 0}/{"EnableUfsIOC", 1}/' -e 's/{"SecurityFlag", 0x
     -e 's/{"SharedIMEMBaseAddr ", /{"SharedIMEMBaseAddr", /' Silicon/Qualcomm/sm8250/Include/Configuration/DeviceConfigurationMap.h
 ```
 
+### Root cause of INACCESSIBLE_BOOT_DEVICE: PEP0.PEPH
+With the kernel debugger attached: `qcpep` (`ACPI\QCOM2519`) fails `EvtDriverDeviceAdd` with
+`STATUS_NO_SUCH_DEVICE` (`!devnode`: `CM_PROB_FAILED_ADD`, `0xc000000e`), so UFS0 (`_DEP` on PEP0) waits
+forever and storufs never gets a device (`PnpBootDeviceWait`). In `qcpep8250.sys` the add-device callback
+evaluates `PEP0.PEPH` and compares the returned string with PEP0's hardware and compatible IDs; no match
+returns `0xC000000E`. pipa's `PEPH` returns `"ACPI\\VEN_QCOM&DEV_0519"`, and the generator renamed only the
+`QCOM05xx` spelling, so PEP0 was `DEV_2519` while PEPH still said `DEV_0519`. The generator now renames
+both spellings. This one string is the cause on both edk2-msm and Mu-Silicium firmware.
+
 ### Debug: kernel debugger over USB (KDNET)
 edk2-msm's sm8250 build ships no DBG2 table, so Windows has no debug port. Qualcomm's Kona DBG2 (shipped
 unchanged by Silicium's pipa) describes KDNET over USB EEM on both USB controllers (port type `0x8003`,

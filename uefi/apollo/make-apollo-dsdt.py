@@ -10,7 +10,7 @@ they exist for bisecting boot crashes (see README.md, "Bisecting a boot crash").
 
 Needs `iasl` on PATH. Steps (each one checked on the device, see README.md):
   1. drop pipa devices that are board-specific, unsafe on apollo or need pipa's memory carve-outs
-  2. QCOM05xx -> QCOM25xx (hardware IDs used by WOA-Project/windows_silicon_qcom_kona)
+  2. QCOM05xx -> QCOM25xx and VEN_QCOM&DEV_05xx -> DEV_25xx (IDs used by WOA-Project/windows_silicon_qcom_kona)
   3. UFS0 PEP rails -> apollo's measured rails (VCC LDO17_A 2.496 V, ref clock LDO6_A 1.2 V)
   4. repair everything that referenced a dropped device, until iasl compiles with 0 errors
 """
@@ -133,8 +133,11 @@ def main(src, dst, extra=frozenset(), no_thermal=False):
     drop = DROP | set(extra)
     text = open(src).read()
     text = drop_devices(text, drop, no_thermal)
-    n_ids = len(re.findall(r'QCOM05[0-9A-F]{2}', text))
+    # both spellings: _HID "QCOM05xx" and PEP0.PEPH's "ACPI\\VEN_QCOM&DEV_05xx" (qcpep compares PEPH with
+    # PEP0's hardware ID and fails AddDevice with STATUS_NO_SUCH_DEVICE if they differ)
+    n_ids = len(re.findall(r'QCOM05[0-9A-F]{2}|VEN_QCOM&DEV_05[0-9A-F]{2}', text))
     text = re.sub(r'QCOM05([0-9A-F]{2})', r'QCOM25\1', text)
+    text = re.sub(r'VEN_QCOM&DEV_05([0-9A-F]{2})', r'VEN_QCOM&DEV_25\1', text)
     text, n_rails = remap_ufs_rails(text)
     text = re.sub(r'DefinitionBlock \("[^"]*", "DSDT"', 'DefinitionBlock ("DSDT.AML", "DSDT"', text, count=1)
     # decompiler quirks: _DEP written as strings; URS0's _HID given through an Alias
