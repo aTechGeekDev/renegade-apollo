@@ -37,3 +37,6 @@ logs/
 # Editor / OS
 .DS_Store
 *.swp
+
+# Mu-Silicium build files (EDK2 module/ACPI .inf, not Windows driver INFs)
+!mu/**/*.inf
