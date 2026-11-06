@@ -7,7 +7,7 @@ to a Mu-Silicium checkout.
 
 | Piece | Source | apollo changes |
 | --- | --- | --- |
-| `Platforms/Xiaomi/apolloPkg` | Silicium `aliothPkg` (Poco F3) | `SOC_TYPE 0` (SM8250), apollo SMBIOS, no Qualcomm charger drivers |
+| `Platforms/Xiaomi/apolloPkg` | Silicium `aliothPkg` (Poco F3) | `SOC_TYPE 0` (SM8250), apollo SMBIOS (alioth's DXE list unchanged: leaving out the Qualcomm charger drivers crashed UEFI with a Synchronous Exception) |
 | Firmware binaries | Silicium `Binaries/alioth` (Xiaomi's shared Kona XBL; it carries apollo's `Panel_J3S` config) | none yet; apollo's own `xbl` can replace them later (UEFIReader) |
 | `Resources/Configs/apollo.toml` | same as pipa/alioth | none |
 | `Resources/DTBs/apollo.dtb` | apollo stock DT from edk2-msm (`board-id 0x2a`) | none |

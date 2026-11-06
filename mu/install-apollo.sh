@@ -6,8 +6,7 @@
 #
 # What it installs:
 #   Platforms/Xiaomi/apolloPkg        - derived from Silicium's aliothPkg (Poco F3, the closest SM8250 phone
-#                                       with working Windows); SOC_TYPE 0 (SM8250), apollo SMBIOS, Qualcomm
-#                                       charger drivers left out; firmware binaries are Silicium's alioth set
+#                                       with working Windows); SOC_TYPE 0 (SM8250), apollo SMBIOS; firmware binaries are Silicium's alioth set
 #                                       (Xiaomi's shared Kona XBL, which also carries apollo's J3S panel config)
 #   Resources/Configs/apollo.toml     - same boot image settings as pipa/alioth
 #   Resources/DTBs/apollo.dtb         - apollo's stock device tree (board-id 0x2a), taken from edk2-msm

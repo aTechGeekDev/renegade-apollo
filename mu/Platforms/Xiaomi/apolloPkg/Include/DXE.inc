@@ -70,6 +70,8 @@
   INF Binaries/alioth/QcomPkg/Drivers/PlatformInfoDxe/PlatformInfoDxe.inf
   INF Binaries/alioth/QcomPkg/Drivers/ButtonsDxe/ButtonsDxe.inf
   INF Binaries/alioth/QcomPkg/Drivers/PmicDxe/PmicDxeLa.inf
+  INF Binaries/alioth/QcomPkg/Drivers/ChargerExDxe/ChargerExDxe.inf
+  INF Binaries/alioth/QcomPkg/Drivers/QcomChargerDxe/QcomChargerDxeLA.inf
   INF Binaries/alioth/QcomPkg/Drivers/UsbPwrCtrlDxe/UsbPwrCtrlDxe.inf
   INF Binaries/alioth/QcomPkg/Drivers/AdcDxe/AdcDxe.inf
   INF Binaries/alioth/QcomPkg/Drivers/TsensDxe/TsensDxe.inf
