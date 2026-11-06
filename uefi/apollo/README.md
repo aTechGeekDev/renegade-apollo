@@ -46,7 +46,34 @@ The patch ports sm8150's implementation (minus the RFS-protection call): SOSI co
 chip ID / version / family / serial from ChipInfo, platform subtype from PlatformInfo.
 `TCMA` stays `0xDEADBEEF` without a `TGCM` region, the same as every sm8150 device.
 
-## 4. Windows image side (not firmware)
+## 4. A full Windows DSDT for apollo (fixes INACCESSIBLE_BOOT_DEVICE)
+Every SM8250 device in edk2-msm ships a 4 KB stub DSDT (CPUs + UFS0, no PEP), so Windows' `storufs`
+cannot power the UFS and stops with `INACCESSIBLE_BOOT_DEVICE` (0x7B). (Samsung r8q's large table is a
+byte-identical copy of an SM8150 one.)
+
+[`make-apollo-dsdt.py`](make-apollo-dsdt.py) builds apollo's table from
+[Silicium-ACPI](https://github.com/Project-Silicium/Silicium-ACPI)'s Xiaomi **pipa** (SM8250-AC, Kona)
+DSDT. The table itself is not committed here (Silicium-ACPI has no licence file); generate it locally:
+
+```sh
+git clone --depth 1 https://github.com/Project-Silicium/Silicium-ACPI
+python3 make-apollo-dsdt.py Silicium-ACPI/Platforms/Xiaomi/pipa/Decompiled/DSDT.dsl Dsdt.asl
+```
+
+What it changes, and how it was checked:
+- **IDs:** `QCOM05xx` -> `QCOM25xx`, the IDs in `WOA-Project/windows_silicon_qcom_kona` (58 ids; every one
+  maps to the matching driver, e.g. PEP0->qcpep, GIO0->qcgpio, SPMI->qcspmi).
+- **UFS power rails** remapped to apollo's measured ones (`/sys/class/regulator` in recovery):
+  VCC `LDO10_A` 2.904 V -> `LDO17_A` 2.496 V, ref clock/VCCQ `LDO3_C` -> `LDO6_A` 1.2 V.
+- **Devices removed for first boot:** Bluetooth (would set `LDO11_C` 3.312 V > apollo max 3.304 V and
+  `LDO2_C` 1.304 V vs apollo's fixed 1.08 V), SD card, audio, cameras, pipa's touch/battery/sensors,
+  modem/DSP/sensor loaders (pipa memory carve-outs), SMMUs, PCIe, `TREE` (reads `TCMA = 0xDEADBEEF`).
+  Kept: CPUs, PEP0, UFS0, GPIO, SPMI, PMIC (+GPIO/apps/ext/RTC), ABD, SCM0, BAMs, GPI, USB, buttons.
+- **Rail audit of the result:** every PMIC vote of a kept device is inside apollo's own regulator limits;
+  no `Memory32Fixed` inside RAM; compiles with `iasl` (0 errors). Every line the repair step changed was
+  checked to reference only removed objects (one circular PEP0<->AGR0 reference kept via `External`).
+
+## 5. Windows image side (not firmware)
 - Drivers: `WOA-Project/windows_silicon_qcom_kona`, injected with `dism /Add-Driver /Recurse /ForceUnsigned`.
 - BCD: `testsigning on`, `nointegritychecks on`, `recoveryenabled no`.
 - `qcppx` (PCIe, `qcppx8250.sys`) is disabled (`Services\qcppx\Start = 4`, originally 0): winload
