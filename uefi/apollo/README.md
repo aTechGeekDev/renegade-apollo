@@ -174,6 +174,23 @@ under Mu-Silicium, whose firmware runs Qualcomm DXE drivers that edk2-msm's sm82
 the prime suspect. Not yet proven; checks: read the register from the UEFI shell (`mm 18350800 -w 4 -mmio -n`; a hang
 confirms it), and boot Windows from Mu-Silicium firmware, which runs those drivers.
 
+**Workaround: skip qcpep's LMh register accesses.** [`patch-qcpep-lmh.py`](patch-qcpep-lmh.py) turns the three
+functions that touch the two LMh blocks into `ret` (`+0x5520` reads +4, `+0x5b20` writes +8, `+0x5b88` writes +0; all
+callers ignore their results; mapping the blocks is left alone). It only accepts qcpep8250.sys 1.0.2140.0 (SHA-256
+checked), removes the original signature and fixes the PE checksum. LMh keeps the firmware's configuration (hardware
+throttling still runs). The patched file must be test-signed; Windows loads it with `testsigning on`.
+[`sign-install-qcpep.ps1`](sign-install-qcpep.ps1) signs it with a self-made certificate and replaces every copy in the
+phone's offline Windows: the INF runs it from the driver store (`%13%`), so the live copy is
+`Windows\System32\DriverStore\FileRepository\qcpep.*\qcpep8250.sys`. Originals are kept as `.orig` (`-Restore`).
+
+```sh
+curl -LO https://github.com/WOA-Project/windows_silicon_qcom_kona/raw/HEAD/Drivers/SOC/PowerManagement/qcpep8250.sys
+python3 patch-qcpep-lmh.py qcpep8250.sys qcpep8250-lmhfix.sys
+```
+```powershell
+powershell -ExecutionPolicy Bypass -File sign-install-qcpep.ps1 -Sys .\qcpep8250-lmhfix.sys -WindowsDrive W: -EspDrive S: -DebugOff
+```
+
 ### Debug: kernel debugger over USB (KDNET)
 edk2-msm's sm8250 build ships no DBG2 table, so Windows has no debug port. Qualcomm's Kona DBG2 (shipped
 unchanged by Silicium's pipa) describes KDNET over USB EEM on both USB controllers (port type `0x8003`,
