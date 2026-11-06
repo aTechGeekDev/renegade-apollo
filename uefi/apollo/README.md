@@ -107,6 +107,25 @@ With the screen shifted, image D (PEP region reserved) still shows `INACCESSIBLE
 `P2 = 0xC0000034` (STATUS_OBJECT_NAME_NOT_FOUND): the boot disk's device object never appeared, so the
 UFS disk was never enumerated.
 
+### Matching the firmware that boots Windows on Kona (Mu-Silicium)
+Renegade's docs have no SM8250 Windows status, and every edk2-msm SM8250 device has a stub DSDT; Windows
+on Kona is booted with [Mu-Silicium](https://github.com/Project-Silicium/Mu-Silicium) (alioth: Windows
+boot + internal storage working). Two differences from it matter here:
+
+- **Low memory.** Mu-Silicium's alioth/pipa maps give Windows only `0x98900000`-`0x9C000000` below
+  `0xA0000000`. A pipa build that handed Windows more low memory hit this same `INACCESSIBLE_BOOT_DEVICE`
+  and was fixed by that layout ([Mu-Silicium #2145](https://github.com/Project-Silicium/Mu-Silicium/issues/2145)).
+  apollo's map now keeps the Android-only low slices ("Low Free 1-6") out of Windows' RAM (about 116 MB).
+- **Qualcomm platform config** (`Silicon/Qualcomm/sm8250/Include/Configuration/DeviceConfigurationMap.h`):
+  `EnableUfsIOC` 0 -> 1 and `SecurityFlag` 0xC40 -> 0xC4 (both as in Mu-Silicium alioth/pipa; 0xC40
+  appears nowhere else in edk2-msm), and the key `"SharedIMEMBaseAddr "` loses its trailing space,
+  without which UEFI never finds it. `SecPagePoolCount` stays at 0x680.
+
+```sh
+sed -i -e 's/{"EnableUfsIOC", 0}/{"EnableUfsIOC", 1}/' -e 's/{"SecurityFlag", 0xC40}/{"SecurityFlag", 0xC4}/' \
+    -e 's/{"SharedIMEMBaseAddr ", /{"SharedIMEMBaseAddr", /' Silicon/Qualcomm/sm8250/Include/Configuration/DeviceConfigurationMap.h
+```
+
 ### Debug: kernel debugger over USB (KDNET)
 edk2-msm's sm8250 build ships no DBG2 table, so Windows has no debug port. Qualcomm's Kona DBG2 (shipped
 unchanged by Silicium's pipa) describes KDNET over USB EEM on both USB controllers (port type `0x8003`,
