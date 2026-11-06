@@ -151,6 +151,29 @@ returns `0xC000000E`. pipa's `PEPH` returns `"ACPI\\VEN_QCOM&DEV_0519"`, and the
 `QCOM05xx` spelling, so PEP0 was `DEV_2519` while PEPH still said `DEV_0519`. The generator now renames
 both spellings. This one string is the cause on both edk2-msm and Mu-Silicium firmware.
 
+### After the PEPH fix: boot hangs in qcpep's AddDevice (register write at 0x18350800)
+With the PEPH fix (image E, edk2-msm firmware) `qcpep` no longer fails, and Windows no longer bugchecks: it sits at
+the spinner. All 8 CPUs are up (`!cpuinfo`), but no device is ever started. Kernel debugger findings:
+
+- `!pnptriage`: `nt!PiEngineLock` is held by the `Phase1Initialization` thread, which is RUNNING on CPU 5. CPU 5 is
+  the only CPU that does not answer the debugger's freeze IPI (no context), so it is stuck in a hardware access.
+- Its stack (`dps` over the thread's stack): `IopInitializeBootDrivers` -> `PipCallDriverAddDevice` ->
+  `Wdf01000!FxDriver::AddDevice` -> `qcpep8250` AddDevice -> `+0x1df300` -> `+0x5c50` -> `+0x5b88` -> `+0x3398`
+  (`dsb sy; str w1, [x0]`, a 32-bit MMIO write).
+- `qcpep8250.sys` (WOA-Project `windows_silicon_qcom_kona`, same build: the stack offsets match) `+0x5c50` maps
+  `0x18350800` and `0x18358800` (0x2C bytes each, `MmMapIoSpaceEx`), then writes `0x3A` to each. The stack holds the
+  return address of the first write, so the write to **`0x18350800`** never completes. The call is unconditional
+  in AddDevice; nothing in ACPI or the registry gates it. qcpep's LMh (`LMH_DCVSH_*`) code sits around it.
+- WDF's log for the device stops at `WdfDevStatePnpInit`, and a qcpep work item waits on an event that is only set
+  after start. Both follow from AddDevice never returning.
+
+A write that hangs the CPU (instead of faulting) means the block is unclocked or unpowered. Linux's apollo
+device tree does not describe `0x18350800` at all, so it is set up by firmware. The same qcpep boots on pipa/alioth
+under Mu-Silicium, whose firmware runs Qualcomm DXE drivers that edk2-msm's sm8250 build does not include:
+**LimitsDxe**, CPRDxe, PdcDxe, TsensDxe, AdcDxe, GpiDxe, PILDxe, SPSSDxe, FeatureEnablerDxe. LimitsDxe (LMh setup) is
+the prime suspect. Not yet proven; checks: read the register from the UEFI shell (`mm 18350800 -w 4 -mmio -n`; a hang
+confirms it), and boot Windows from Mu-Silicium firmware, which runs those drivers.
+
 ### Debug: kernel debugger over USB (KDNET)
 edk2-msm's sm8250 build ships no DBG2 table, so Windows has no debug port. Qualcomm's Kona DBG2 (shipped
 unchanged by Silicium's pipa) describes KDNET over USB EEM on both USB controllers (port type `0x8003`,
