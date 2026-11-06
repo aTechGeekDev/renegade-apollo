@@ -34,7 +34,19 @@ The new map was checked programmatically: every `Conv` region is inside Linux Sy
 region overlaps a `no-map` carve-out, and every carve-out is fully `Reserv`. RAM is still capped at
 `0x200000000` (about 5.5 GB usable); bank 3 up to `0x280000000` can be exposed once boot is stable.
 
-## 3. Windows image side (not firmware)
+## 3. Fill in the ACPI placeholders at boot (sm8250)
+[`0001-sm8250-patch-acpi-placeholders.patch`](0001-sm8250-patch-acpi-placeholders.patch) (apply with
+`git apply` in the edk2-msm root, made against `e195262`).
+
+sm8250's `MsPlatformDevicesLib` had `PlatformUpdateAcpiTables()` commented out and `AslUpdateLib`
+disabled, so Windows read the DSDT placeholders as-is, including
+`SOSI = 0xdeadbeefffffffff` (SoCInfo shared-memory base used by Qualcomm's ChipInfoLib). A Qualcomm driver
+mapped that address and Windows stopped with `MEMORY_MANAGEMENT` (0x1A, parameter 2 containing `DEADBEEF`).
+The patch ports sm8150's implementation (minus the RFS-protection call): SOSI comes from SMEM item 137,
+chip ID / version / family / serial from ChipInfo, platform subtype from PlatformInfo.
+`TCMA` stays `0xDEADBEEF` without a `TGCM` region, the same as every sm8150 device.
+
+## 4. Windows image side (not firmware)
 - Drivers: `WOA-Project/windows_silicon_qcom_kona`, injected with `dism /Add-Driver /Recurse /ForceUnsigned`.
 - BCD: `testsigning on`, `nointegritychecks on`, `recoveryenabled no`.
 - `qcppx` (PCIe, `qcppx8250.sys`) is disabled (`Services\qcppx\Start = 4`, originally 0): winload
