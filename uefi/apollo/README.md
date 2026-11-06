@@ -73,6 +73,26 @@ What it changes, and how it was checked:
   no `Memory32Fixed` inside RAM; compiles with `iasl` (0 errors). Every line the repair step changed was
   checked to reference only removed objects (one circular PEP0<->AGR0 reference kept via `External`).
 
+### Bisecting a boot crash
+With this table storage comes up, and the next boot stops with `DRIVER_IRQL_NOT_LESS_OR_EQUAL` in
+**ACPI.sys** (a NULL read). The crash is in Microsoft's ACPI driver, not a Qualcomm one, so the
+suspects are the objects ACPI.sys drives itself:
+- `PRTC` (`ACPI000E`, Time & Alarm): ACPI.sys reads the clock through `_GRT`, a GenericSerialBus field
+  on `ABD`. edk2-msm's stub had no PRTC, and Windows then used the UEFI clock.
+- the thermal zones (`TZ0`..`TZ99`), which ACPI.sys owns.
+
+Ruled out: the MADT and GTDT are field-for-field identical to Silicium's Kona ones, and FADT flags match.
+Every `_DEP` target is a device, and the `External` is wrapped by iasl in `If (Zero)`.
+
+The generator takes `--drop NAME,...` and `--no-thermal` for this. [`bisect-build.sh`](bisect-build.sh)
+builds three images in one go, each removing more than the one before it:
+
+| Image | Removes (on top of the list above) |
+| --- | --- |
+| `boot-apollo-A.img` | `PRTC` |
+| `boot-apollo-B.img` | `PRTC` + all thermal zones |
+| `boot-apollo-C.img` | B + `PEXT BTNS URS1 QGP0-2 BAM* RPEN`; keeps UFS, PEP, GPIO, SPMI, PMIC, USB + Type-C |
+
 ## 5. Windows image side (not firmware)
 - Drivers: `WOA-Project/windows_silicon_qcom_kona`, injected with `dism /Add-Driver /Recurse /ForceUnsigned`.
 - BCD: `testsigning on`, `nointegritychecks on`, `recoveryenabled no`.

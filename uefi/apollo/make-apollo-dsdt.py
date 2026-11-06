@@ -3,6 +3,10 @@
 
     git clone --depth 1 https://github.com/Project-Silicium/Silicium-ACPI
     python3 make-apollo-dsdt.py Silicium-ACPI/Platforms/Xiaomi/pipa/Decompiled/DSDT.dsl Dsdt.asl
+        [--drop NAME,NAME,...] [--no-thermal]
+
+--drop and --no-thermal remove further devices / all thermal zones on top of the fixed list;
+they exist for bisecting boot crashes (see README.md, "Bisecting a boot crash").
 
 Needs `iasl` on PATH. Steps (each one checked on the device, see README.md):
   1. drop pipa devices that are board-specific, unsafe on apollo or need pipa's memory carve-outs
@@ -38,19 +42,22 @@ def block_end(lines, start):
     raise ValueError(f'unbalanced block at line {start + 1}')
 
 
-def drop_devices(text):
+def drop_devices(text, drop, no_thermal=False):
     out, lines, i = [], text.splitlines(keepends=True), 0
     depth, removed = 0, set()
     while i < len(lines):
+        if no_thermal and re.match(r'\s*ThermalZone \(', lines[i]) and depth <= 2:
+            i = block_end(lines, i) + 1
+            continue
         m = re.match(r'\s*Device \((\w+)\)', lines[i])
-        if m and m.group(1) in DROP and depth <= 2:
+        if m and m.group(1) in drop and depth <= 2:
             removed.add(m.group(1))
             i = block_end(lines, i) + 1
             continue
         depth += lines[i].count('{') - lines[i].count('}')
         out.append(lines[i])
         i += 1
-    missing = DROP - removed
+    missing = drop - removed
     if missing:
         sys.exit(f'devices not found in input (wrong source table?): {sorted(missing)}')
     return ''.join(out)
@@ -122,9 +129,10 @@ def repair(path):
     return compile_errors(path)
 
 
-def main(src, dst):
+def main(src, dst, extra=frozenset(), no_thermal=False):
+    drop = DROP | set(extra)
     text = open(src).read()
-    text = drop_devices(text)
+    text = drop_devices(text, drop, no_thermal)
     n_ids = len(re.findall(r'QCOM05[0-9A-F]{2}', text))
     text = re.sub(r'QCOM05([0-9A-F]{2})', r'QCOM25\1', text)
     text, n_rails = remap_ufs_rails(text)
@@ -150,7 +158,8 @@ def main(src, dst):
               ' * Silicium-ACPI Platforms/Xiaomi/pipa (SM8250-AC, Kona). Do not edit by hand. */\n')
     open(dst, 'w').write(header + ''.join(lines))
     errs, summary = repair(dst)
-    print(f'dropped {len(DROP)} devices, renamed {n_ids} ids, {n_rails} UFS0 rail edits')
+    print(f'dropped {len(drop)} devices{" and all thermal zones" if no_thermal else ""}, '
+          f'renamed {n_ids} ids, {n_rails} UFS0 rail edits')
     print(summary)
     if errs:
         for ln, e in errs[:20]:
@@ -159,6 +168,14 @@ def main(src, dst):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) != 3:
+    args, extra, no_thermal = sys.argv[1:], set(), False
+    if '--no-thermal' in args:
+        args.remove('--no-thermal')
+        no_thermal = True
+    if '--drop' in args:
+        k = args.index('--drop')
+        extra = {n for n in args[k + 1].split(',') if n}
+        del args[k:k + 2]
+    if len(args) != 2:
         sys.exit(__doc__)
-    main(sys.argv[1], sys.argv[2])
+    main(args[0], args[1], extra, no_thermal)
