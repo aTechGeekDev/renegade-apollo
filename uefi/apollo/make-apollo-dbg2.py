@@ -1,18 +1,22 @@
 #!/usr/bin/env python3
-"""Build apollo's DBG2 table (kernel debugging over USB) from Silicium-ACPI's Kona DBG2.
+"""Check and install Silicium-ACPI's Kona DBG2 table for apollo (kernel debugging over USB).
 
-    python3 make-apollo-dbg2.py Silicium-ACPI/Silicon/Qualcomm/Kona/DBG2.aml Dbg2.aml [--second]
+    python3 make-apollo-dbg2.py Silicium-ACPI/Silicon/Qualcomm/Kona/DBG2.aml Dbg2.aml
 
-Keeps only the entry for the primary USB controller (\\_SB.URS0, 0x0A600000): port type 0x8003
-(KDNET over USB), subtype 0x5143 ("QC"), which Windows serves with kd_8003_5143.dll. The Kona table
-also lists a debug UART (\\_SB.UARD, removed from apollo's DSDT) and the second USB controller.
-It lists URS0 twice; the copies differ only in Qualcomm's OEM clock-fixup data. The first is used,
---second picks the other if the first does not bring the debug link up.
-Every offset inside a DBG2 device entry is relative to that entry, so it is copied unchanged.
+The table is used unchanged (Silicium's pipa ships it as is); only its header checksum, stored as 0 in
+the source, is fixed. Windows picks the debug port with BCD `busparams` = index into this table. Qualcomm's
+layout keeps index 0 for the debug UART, and Microsoft's KDNET-EEM-USB guide uses busparams=1 as the default
+USB port:
+    busparams=1 / 3 : \\_SB.URS0 (primary USB-C controller, 0x0A600000), two clock-fixup variants
+    busparams=2 / 4 : \\_SB.URS1 (second controller)
+USB entries are port type 0x8003 (KDNET over USB EEM), subtype 0x5143, served by kd_8003_5143.dll.
+The script refuses a table whose layout differs, so the busparams values above stay true.
 """
 import struct, sys
 
 HDR = 36
+EXPECT = [('\\_SB.UARD', 0x8000), ('\\_SB.URS0', 0x8003), ('\\_SB.URS1', 0x8003),
+          ('\\_SB.URS0', 0x8003), ('\\_SB.URS1', 0x8003)]
 
 
 def entries(t):
@@ -23,34 +27,28 @@ def entries(t):
         off += length
 
 
-def namepath(e):
+def describe(e):
     n_len, n_off = struct.unpack_from('<HH', e, 4)
-    return e[n_off:n_off + n_len].rstrip(b'\0').decode()
-
-
-def main(src, dst, which=0):
-    t = open(src, 'rb').read()
-    if t[:4] != b'DBG2':
-        sys.exit(f'{src} is not a DBG2 table')
-    keep = [e for e in entries(t) if namepath(e) == '\\_SB.URS0']
-    if len(keep) != 2:
-        sys.exit(f'expected two \\_SB.URS0 entries, found {len(keep)} (wrong source table?)')
-    e = keep[which]
     ptype, psub = struct.unpack_from('<HH', e, 12)
-    if (ptype, psub) != (0x8003, 0x5143):
-        sys.exit(f'URS0 entry is type {ptype:#x}/{psub:#x}, expected 0x8003/0x5143')
-    body = struct.pack('<II', HDR + 8, 1) + e
-    hdr = bytearray(t[:HDR])
-    struct.pack_into('<I', hdr, 4, HDR + len(body))   # length
-    hdr[9] = 0                                         # checksum, fixed below
-    out = bytearray(hdr + body)
-    out[9] = (-sum(out)) & 0xFF
-    open(dst, 'wb').write(out)
-    print(f'{dst}: {len(out)} bytes, 1 entry: \\_SB.URS0 (copy {which + 1}) type {ptype:#06x} subtype {psub:#06x}')
+    return e[n_off:n_off + n_len].rstrip(b'\0').decode(), ptype, psub
+
+
+def main(src, dst):
+    t = bytearray(open(src, 'rb').read())
+    if t[:4] != b'DBG2' or struct.unpack_from('<I', t, 4)[0] != len(t):
+        sys.exit(f'{src} is not a complete DBG2 table')
+    got = [describe(e) for e in entries(t)]
+    if [(n, p) for n, p, _ in got] != EXPECT or any(s != 0x5143 for n, p, s in got if p == 0x8003):
+        sys.exit(f'unexpected DBG2 layout, busparams mapping would be wrong: {got}')
+    t[9] = 0
+    t[9] = (-sum(t)) & 0xFF
+    open(dst, 'wb').write(t)
+    print(f'{dst}: {len(t)} bytes, checksum fixed')
+    for i, (n, p, s) in enumerate(got):
+        print(f'  busparams={i}: {n}  type {p:#06x} subtype {s:#06x}')
 
 
 if __name__ == '__main__':
-    args = [a for a in sys.argv[1:] if a != '--second']
-    if len(args) != 2:
+    if len(sys.argv) != 3:
         sys.exit(__doc__)
-    main(args[0], args[1], 1 if '--second' in sys.argv else 0)
+    main(sys.argv[1], sys.argv[2])

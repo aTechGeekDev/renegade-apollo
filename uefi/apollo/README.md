@@ -108,17 +108,27 @@ With the screen shifted, image D (PEP region reserved) still shows `INACCESSIBLE
 UFS disk was never enumerated.
 
 ### Debug: kernel debugger over USB (KDNET)
-edk2-msm's sm8250 build ships no DBG2 table, so Windows has no debug port. Qualcomm's Kona DBG2 describes
-KDNET over the primary USB controller (`\_SB.URS0`, port type `0x8003`, subtype `0x5143`, served by
-Windows' `kd_8003_5143.dll`). [`make-apollo-dbg2.py`](make-apollo-dbg2.py) keeps just that entry:
+edk2-msm's sm8250 build ships no DBG2 table, so Windows has no debug port. Qualcomm's Kona DBG2 (shipped
+unchanged by Silicium's pipa) describes KDNET over USB EEM on both USB controllers (port type `0x8003`,
+subtype `0x5143`, served by Windows' `kd_8003_5143.dll`). [`make-apollo-dbg2.py`](make-apollo-dbg2.py)
+checks its layout and fixes the header checksum (stored as 0):
 
 ```sh
 python3 make-apollo-dbg2.py Silicium-ACPI/Silicon/Qualcomm/Kona/DBG2.aml Platform/Xiaomi/sm8250/AcpiTables/apollo/Dbg2.aml
 sed -i 's|^  SECTION RAW = Silicon/Qualcomm/sm8250/AcpiTables/bgrt.aml$|&\n  SECTION RAW = Platform/Xiaomi/sm8250/AcpiTables/apollo/Dbg2.aml|' Platform/Xiaomi/sm8250/apollo.fdf.inc
 ```
-Then enable debugging in the phone's BCD (`debug on`, `dbgsettings net`) and attach WinDbg over the USB
-cable (`-k net:port=...,key=...`). While the debugger owns URS0, USB host mode is unavailable.
-(Note: `apollo.fdf.inc` lists `Madt.aml` twice; upstream, left as is for now.)
+On ARM, BCD `busparams` is the index into DBG2; index 0 is the UART, **`busparams 1` is URS0** (the
+USB-C port), as in Microsoft's KDNET-EEM-USB guide. Offline BCD on the phone's ESP:
+
+```
+bcdedit /store S:\EFI\Microsoft\Boot\BCD /set {default} debug on
+bcdedit /store S:\EFI\Microsoft\Boot\BCD /dbgsettings net hostip:169.254.255.255 port:50000 key:1.2.3.4
+bcdedit /store S:\EFI\Microsoft\Boot\BCD /set {dbgsettings} busparams 1
+bcdedit /store S:\EFI\Microsoft\Boot\BCD /set {dbgsettings} dhcp no
+```
+Host: Windows 10 20H2 or later, USB-A 3.0 port, firewall off for the debugger,
+`WinDbgX -k net:port=50000,key=1.2.3.4`. It shows a "KDNET-USB-EEM Network Adapter". While the debugger
+owns URS0, USB host mode is unavailable. (`apollo.fdf.inc` lists `Madt.aml` twice; upstream, left as is.)
 
 ### Debug: move the screen below the camera hole
 Windows prints the bugcheck parameters at the top-left, under apollo's punch-hole camera. For debug builds,
