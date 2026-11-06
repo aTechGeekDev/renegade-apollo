@@ -4,8 +4,15 @@ Changes to [`edk2-porting/edk2-msm`](https://github.com/edk2-porting/edk2-msm) f
 Windows 11 24H2 ARM64 on a Mi 10T Pro (apollo, 8 GB / 128 GB). Build with
 `./build.sh --device apollo -A -f` (`-A` is required, or the DSDT is not recompiled).
 
-## 1. Drop SimpleInit from apollo's boot order
-`Platform/Xiaomi/sm8250/apollo.dsc`: remove `-DENABLE_SIMPLE_INIT` from `CC_FLAGS`.
+## 1. Build flags: drop SimpleInit, enable PUS3
+`Platform/Xiaomi/sm8250/apollo.dsc`: remove `-DENABLE_SIMPLE_INIT` from `CC_FLAGS` and add `-DENABLE_PUS3`
+(apollo has UFS 3.1; see section 4, `PUS3`):
+
+```sh
+sed -i 's/^  GCC:\*_\*_AARCH64_CC_FLAGS = -DENABLE_SIMPLE_INIT /  GCC:*_*_AARCH64_CC_FLAGS = -DENABLE_PUS3 /' Platform/Xiaomi/sm8250/apollo.dsc
+```
+Result: `GCC:*_*_AARCH64_CC_FLAGS = -DENABLE_PUS3 -DENABLE_LINUX_SIMPLE_MASS_STORAGE`. `PUS3` only takes
+effect with the placeholder patch from section 3.
 
 SimpleInit exits with status 1 on apollo (`Error: Image at 000C973F000 start failed: 00000001`), so the
 firmware never reached the Windows boot entry and sat on the logo. Without the flag, the BDS boots the
@@ -126,7 +133,7 @@ boot + internal storage working). Two differences from it matter here:
   and `SecurityFlag 0xC4`, Windows still stops at `INACCESSIBLE_BOOT_DEVICE` / `0xC0000034`.
 - **`PUS3`:** the placeholder patch writes 1 only with `-DENABLE_PUS3`; apollo (UFS 3.1) got 0. Mu-Silicium
   defaults it to 1. In this DSDT it only picks UFS0's DDR bandwidth vote (`BPCC` 1.2 GB/s vs `CPCC`
-  2.4 GB/s), so it does not explain the missing disk; add `-DENABLE_PUS3` to apollo's CC_FLAGS anyway.
+  2.4 GB/s), so it does not explain the missing disk; apollo's CC_FLAGS now set `-DENABLE_PUS3` anyway (section 1).
 - **Windows build:** the image is 26100 (24H2). Mu-Silicium's Windows guide advises against 24H2 and newer
   on these devices; no specific cause is documented.
 
