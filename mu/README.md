@@ -18,4 +18,8 @@ bash install-apollo.sh                      # MU=~/Mu-Silicium EDK=~/edk2-msm by
 cd ~/Mu-Silicium && python3 build_uefi.py -d apollo
 fastboot boot Mu-apollo.img
 ```
+`install-apollo.sh` moves the framebuffer 256 rows down by default (`FB_SHIFT=256`: "Display Reserved" starts
+at `0x9C10E000`, height 2144) so bugcheck codes and UEFI exception text clear the punch-hole camera. Re-run it
+with `FB_SHIFT=0` for a full-screen build.
+
 The Windows install and its WOA-Project Kona drivers stay as they are: the DSDT uses the same QCOM25xx IDs.

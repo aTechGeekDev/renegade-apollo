@@ -11,6 +11,10 @@
 #      GPI DMA, BAM, reset-protection. Keeps UFS, PEP, GPIO, SPMI, PMIC, USB + Type-C.
 #
 # Boot A first. If it reaches setup, PRTC is the culprit; if not, try B, then C.
+#
+# FB_SHIFT=256 (default) starts the framebuffer 256 rows lower so the bugcheck text Windows prints in
+# the top-left corner is not hidden by the punch-hole camera. Multiples of 128 only (page alignment).
+# FB_SHIFT=0 builds with the normal full-screen framebuffer. apollo.dsc is restored when the script ends.
 set -euo pipefail
 
 EDK=${EDK:-$HOME/edk2-msm}
@@ -19,10 +23,28 @@ GEN=${GEN:-$HOME/make-apollo-dsdt.py}
 OUT=${OUT:-$HOME/apollo-dsdt}
 SRC=$SACPI/Platforms/Xiaomi/pipa/Decompiled/DSDT.dsl
 ACPI=$EDK/Platform/Xiaomi/sm8250/AcpiTables/apollo
+DSC=$EDK/Platform/Xiaomi/sm8250/apollo.dsc
+FB_SHIFT=${FB_SHIFT:-256}
 
-for f in "$SRC" "$GEN" "$ACPI/Dsdt.asl"; do
+for f in "$SRC" "$GEN" "$ACPI/Dsdt.asl" "$DSC"; do
     [ -e "$f" ] || { echo "missing: $f" >&2; exit 1; }
 done
+
+# Framebuffer shift (debug): apollo.dsc includes sm8250.dsc first, so these override its 0x9c000000 / 2400.
+fb_reset() {
+    sed -i -e '/^  gQcomTokenSpaceGuid.PcdMipiFrameBufferAddress|/d' \
+        -e 's/^  gQcomTokenSpaceGuid.PcdMipiFrameBufferHeight|.*/  gQcomTokenSpaceGuid.PcdMipiFrameBufferHeight|2400/' "$DSC"
+}
+if [ "$FB_SHIFT" -ne 0 ]; then
+    { [ $((FB_SHIFT % 128)) -eq 0 ] && [ "$FB_SHIFT" -lt 2400 ]; } \
+        || { echo "FB_SHIFT must be a multiple of 128 below 2400" >&2; exit 1; }
+    FB_ADDR=$(printf '0x%X' $((0x9C000000 + FB_SHIFT * 1080 * 4)))
+    fb_reset
+    sed -i "s/^  gQcomTokenSpaceGuid.PcdMipiFrameBufferHeight|2400\$/  gQcomTokenSpaceGuid.PcdMipiFrameBufferAddress|$FB_ADDR\n  gQcomTokenSpaceGuid.PcdMipiFrameBufferHeight|$((2400 - FB_SHIFT))/" "$DSC"
+    grep -q "PcdMipiFrameBufferAddress|$FB_ADDR" "$DSC" || { echo "could not apply FB_SHIFT to $DSC" >&2; exit 1; }
+    trap fb_reset EXIT
+    echo "=== framebuffer shifted $FB_SHIFT rows: $FB_ADDR, height $((2400 - FB_SHIFT))"
+fi
 
 declare -A ARGS=()
 NAMES=()

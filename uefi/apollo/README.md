@@ -175,14 +175,18 @@ Host: Windows 10 20H2 or later, USB-A 3.0 port, firewall off for the debugger,
 owns URS0, USB host mode is unavailable. (`apollo.fdf.inc` lists `Madt.aml` twice; upstream, left as is.)
 
 ### Debug: move the screen below the camera hole
-Windows prints the bugcheck parameters at the top-left, under apollo's punch-hole camera. For debug builds,
+Windows prints the bugcheck parameters at the top-left, under apollo's punch-hole camera. Debug builds
 start the framebuffer 256 rows lower (256 x 1080 x 4 bytes = 0x10E000, page aligned) and shorten it to
-match. Windows then draws everything below the hole; the framebuffer's end address is unchanged:
+match, so Windows draws everything below the hole; the framebuffer's end address is unchanged.
+
+[`bisect-build.sh`](bisect-build.sh) does this by default (`FB_SHIFT=256`) and restores `apollo.dsc` when it
+finishes. `FB_SHIFT=384` moves it further (multiples of 128 only); `FB_SHIFT=0` builds full-screen. By hand:
 
 ```sh
 sed -i 's/^  gQcomTokenSpaceGuid.PcdMipiFrameBufferHeight|2400$/  gQcomTokenSpaceGuid.PcdMipiFrameBufferAddress|0x9C10E000\n  gQcomTokenSpaceGuid.PcdMipiFrameBufferHeight|2144/' Platform/Xiaomi/sm8250/apollo.dsc
 ```
 (`apollo.dsc` includes `sm8250.dsc` first, so this overrides its `0x9c000000`.) Revert it for normal use.
+The top 256 rows of the panel then show nothing.
 
 ## 5. Windows image side (not firmware)
 - Drivers: `WOA-Project/windows_silicon_qcom_kona`, injected with `dism /Add-Driver /Recurse /ForceUnsigned`.
