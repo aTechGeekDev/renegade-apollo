@@ -121,6 +121,15 @@ boot + internal storage working). Two differences from it matter here:
   appears nowhere else in edk2-msm), and the key `"SharedIMEMBaseAddr "` loses its trailing space,
   without which UEFI never finds it. `SecPagePoolCount` stays at 0x680.
 
+  **Result:** `EnableUfsIOC = 1` breaks edk2-msm's own UFS reads (BdsDxe `0x03051002` boot-option load
+  errors; the UFS LUNs appear in the shell with no partitions), so it stays **0**. With the new memory map
+  and `SecurityFlag 0xC4`, Windows still stops at `INACCESSIBLE_BOOT_DEVICE` / `0xC0000034`.
+- **`PUS3`:** the placeholder patch writes 1 only with `-DENABLE_PUS3`; apollo (UFS 3.1) got 0. Mu-Silicium
+  defaults it to 1. In this DSDT it only picks UFS0's DDR bandwidth vote (`BPCC` 1.2 GB/s vs `CPCC`
+  2.4 GB/s), so it does not explain the missing disk; add `-DENABLE_PUS3` to apollo's CC_FLAGS anyway.
+- **Windows build:** the image is 26100 (24H2). Mu-Silicium's Windows guide advises against 24H2 and newer
+  on these devices; no specific cause is documented.
+
 ```sh
 sed -i -e 's/{"EnableUfsIOC", 0}/{"EnableUfsIOC", 1}/' -e 's/{"SecurityFlag", 0xC40}/{"SecurityFlag", 0xC4}/' \
     -e 's/{"SharedIMEMBaseAddr ", /{"SharedIMEMBaseAddr", /' Silicon/Qualcomm/sm8250/Include/Configuration/DeviceConfigurationMap.h
