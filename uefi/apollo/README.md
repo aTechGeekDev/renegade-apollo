@@ -103,6 +103,23 @@ map leaves it out of RAM. If qcpep cannot map it, PEP0 never starts, and UFS0 (`
 starts either: `INACCESSIBLE_BOOT_DEVICE`. The map now reserves it as `PEP Region`. It is the only
 address in the table that fell inside Windows RAM; the other large constants are bus bandwidths.
 
+With the screen shifted, image D (PEP region reserved) still shows `INACCESSIBLE_BOOT_DEVICE` with
+`P2 = 0xC0000034` (STATUS_OBJECT_NAME_NOT_FOUND): the boot disk's device object never appeared, so the
+UFS disk was never enumerated.
+
+### Debug: kernel debugger over USB (KDNET)
+edk2-msm's sm8250 build ships no DBG2 table, so Windows has no debug port. Qualcomm's Kona DBG2 describes
+KDNET over the primary USB controller (`\_SB.URS0`, port type `0x8003`, subtype `0x5143`, served by
+Windows' `kd_8003_5143.dll`). [`make-apollo-dbg2.py`](make-apollo-dbg2.py) keeps just that entry:
+
+```sh
+python3 make-apollo-dbg2.py Silicium-ACPI/Silicon/Qualcomm/Kona/DBG2.aml Platform/Xiaomi/sm8250/AcpiTables/apollo/Dbg2.aml
+sed -i 's|^  SECTION RAW = Silicon/Qualcomm/sm8250/AcpiTables/bgrt.aml$|&\n  SECTION RAW = Platform/Xiaomi/sm8250/AcpiTables/apollo/Dbg2.aml|' Platform/Xiaomi/sm8250/apollo.fdf.inc
+```
+Then enable debugging in the phone's BCD (`debug on`, `dbgsettings net`) and attach WinDbg over the USB
+cable (`-k net:port=...,key=...`). While the debugger owns URS0, USB host mode is unavailable.
+(Note: `apollo.fdf.inc` lists `Madt.aml` twice; upstream, left as is for now.)
+
 ### Debug: move the screen below the camera hole
 Windows prints the bugcheck parameters at the top-left, under apollo's punch-hole camera. For debug builds,
 start the framebuffer 256 rows lower (256 x 1080 x 4 bytes = 0x10E000, page aligned) and shorten it to
