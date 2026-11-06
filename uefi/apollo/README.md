@@ -103,6 +103,16 @@ map leaves it out of RAM. If qcpep cannot map it, PEP0 never starts, and UFS0 (`
 starts either: `INACCESSIBLE_BOOT_DEVICE`. The map now reserves it as `PEP Region`. It is the only
 address in the table that fell inside Windows RAM; the other large constants are bus bandwidths.
 
+### Debug: move the screen below the camera hole
+Windows prints the bugcheck parameters at the top-left, under apollo's punch-hole camera. For debug builds,
+start the framebuffer 256 rows lower (256 x 1080 x 4 bytes = 0x10E000, page aligned) and shorten it to
+match. Windows then draws everything below the hole; the framebuffer's end address is unchanged:
+
+```sh
+sed -i 's/^  gQcomTokenSpaceGuid.PcdMipiFrameBufferHeight|2400$/  gQcomTokenSpaceGuid.PcdMipiFrameBufferAddress|0x9C10E000\n  gQcomTokenSpaceGuid.PcdMipiFrameBufferHeight|2144/' Platform/Xiaomi/sm8250/apollo.dsc
+```
+(`apollo.dsc` includes `sm8250.dsc` first, so this overrides its `0x9c000000`.) Revert it for normal use.
+
 ## 5. Windows image side (not firmware)
 - Drivers: `WOA-Project/windows_silicon_qcom_kona`, injected with `dism /Add-Driver /Recurse /ForceUnsigned`.
 - BCD: `testsigning on`, `nointegritychecks on`, `recoveryenabled no`.
