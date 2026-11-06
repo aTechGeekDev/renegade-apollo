@@ -3,6 +3,7 @@
 # of the table makes ACPI.sys crash (DRIVER_IRQL_NOT_LESS_OR_EQUAL). Run on the build machine:
 #
 #   bash bisect-build.sh            -> ~/boot-apollo-A.img, -B.img, -C.img
+#   bash bisect-build.sh D="--drop PRTC --no-thermal"   -> just ~/boot-apollo-D.img
 #
 # A  = full table minus PRTC (ACPI000E Time & Alarm device, driven by ACPI.sys itself)
 # B  = A minus every thermal zone (also owned by ACPI.sys)
@@ -23,15 +24,20 @@ for f in "$SRC" "$GEN" "$ACPI/Dsdt.asl"; do
     [ -e "$f" ] || { echo "missing: $f" >&2; exit 1; }
 done
 
-declare -A ARGS=(
-    [A]="--drop PRTC"
-    [B]="--drop PRTC --no-thermal"
-    [C]="--drop PRTC,PEXT,BTNS,URS1,QGP0,QGP1,QGP2,BAM1,BAM5,BAM6,BAM7,BAMD,BAME,BAMF,BAMG,RPEN --no-thermal"
-)
+declare -A ARGS=()
+NAMES=()
+if [ $# -eq 0 ]; then
+    set -- A="--drop PRTC" B="--drop PRTC --no-thermal" \
+        C="--drop PRTC,PEXT,BTNS,URS1,QGP0,QGP1,QGP2,BAM1,BAM5,BAM6,BAM7,BAMD,BAME,BAMF,BAMG,RPEN --no-thermal"
+fi
+for kv in "$@"; do
+    NAMES+=("${kv%%=*}")
+    ARGS[${kv%%=*}]="${kv#*=}"
+done
 
 [ -e "$ACPI/Dsdt.asl.full" ] || cp "$ACPI/Dsdt.asl" "$ACPI/Dsdt.asl.full"   # the table that crashed, kept once
 
-for v in A B C; do
+for v in "${NAMES[@]}"; do
     echo "=== variant $v: ${ARGS[$v]}"
     mkdir -p "$OUT/$v"
     # shellcheck disable=SC2086
@@ -46,4 +52,4 @@ for v in A B C; do
 done
 
 cp "$ACPI/Dsdt.asl.full" "$ACPI/Dsdt.asl"   # leave the tree on the full table
-echo "done: $(ls ~/boot-apollo-[ABC].img | tr '\n' ' ')"
+echo "done: ${NAMES[*]/#/boot-apollo-}"

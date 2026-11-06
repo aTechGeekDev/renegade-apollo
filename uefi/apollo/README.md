@@ -93,6 +93,16 @@ builds three images in one go, each removing more than the one before it:
 | `boot-apollo-B.img` | `PRTC` + all thermal zones |
 | `boot-apollo-C.img` | B + `PEXT BTNS URS1 QGP0-2 BAM* RPEN`; keeps UFS, PEP, GPIO, SPMI, PMIC, USB + Type-C |
 
+**Result:** A still crashed in ACPI.sys; B got past it. **The thermal zones cause the ACPI.sys crash.**
+B then stopped at `INACCESSIBLE_BOOT_DEVICE` again (storage not found).
+
+### PEP's private memory region
+`PEP0.INTR` hands qcpep a list of physical regions to map, among them `0x86000000` (2 MB). apollo's map
+gave `0x85E00000`-`0x86200000` to Windows as RAM (Android uses it as RAM too), while Mu-Silicium's pipa
+map leaves it out of RAM. If qcpep cannot map it, PEP0 never starts, and UFS0 (`_DEP` on PEP0) never
+starts either: `INACCESSIBLE_BOOT_DEVICE`. The map now reserves it as `PEP Region`. It is the only
+address in the table that fell inside Windows RAM; the other large constants are bus bandwidths.
+
 ## 5. Windows image side (not firmware)
 - Drivers: `WOA-Project/windows_silicon_qcom_kona`, injected with `dism /Add-Driver /Recurse /ForceUnsigned`.
 - BCD: `testsigning on`, `nointegritychecks on`, `recoveryenabled no`.
