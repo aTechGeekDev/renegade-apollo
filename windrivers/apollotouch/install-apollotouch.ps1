@@ -148,7 +148,9 @@ foreach ($f in "$Name.sys", "$Name.cat") {
 # 4. install on \_SB.TCH0
 if (Test-Path $Par) { Remove-Item $Par -Recurse -Force }    # fresh diagnostics
 pnputil /add-driver (Join-Path $pkg "$Name.inf") /install | Out-Host
-if ($LASTEXITCODE -and $LASTEXITCODE -ne 3010) { throw "pnputil failed ($LASTEXITCODE)" }
+if ($LASTEXITCODE -eq 259) {
+    Write-Warning 'pnputil kept the installed driver (same or newer version). To force this one: run with -Remove, then install again.'
+} elseif ($LASTEXITCODE -and $LASTEXITCODE -ne 3010) { throw "pnputil failed ($LASTEXITCODE)" }
 Write-Host 'waiting 8 s for the touch firmware download...'
 Start-Sleep 8
 Show-Status

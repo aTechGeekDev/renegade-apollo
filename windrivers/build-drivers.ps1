@@ -59,10 +59,16 @@ foreach ($d in $drivers) {
         Remove-Item $pk -Recurse -Force -ErrorAction SilentlyContinue
         New-Item -ItemType Directory $pk | Out-Null
         Copy-Item $inf, "$Out\$name.sys" $pk
+        # every build gets its own DriverVer (1.0.<CI run>.0), so pnputil replaces an installed older build
+        $build = if ($env:GITHUB_RUN_NUMBER) { $env:GITHUB_RUN_NUMBER } else { '0' }
+        $ver = "DriverVer   = $((Get-Date).ToString('MM/dd/yyyy')),1.0.$build.0"
+        $pinf = Join-Path $pk "$name.inf"
+        (Get-Content $pinf) -replace '^DriverVer\s*=.*$', $ver | Set-Content $pinf -Encoding ASCII
+        Write-Host $ver
         $inf2cat = Get-ChildItem $wdk -Recurse -Filter Inf2Cat.exe | Select-Object -First 1
         if (-not $inf2cat) { throw 'Inf2Cat.exe not found in the WDK package' }
         & $inf2cat.FullName "/driver:$pk" '/os:10_CO_ARM64,10_NI_ARM64,10_GE_ARM64' '/uselocaltime' | Out-Host
         if ($LASTEXITCODE) { throw "Inf2Cat $name" }
-        Copy-Item $inf, "$pk\$name.cat" $Out
+        Copy-Item "$pk\$name.inf", "$pk\$name.cat" $Out
     }
 }
