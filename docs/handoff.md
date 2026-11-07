@@ -1,5 +1,12 @@
 # Handoff: renegade-apollo (Windows on Mi 10T / apollo, SM8250)
 
+> **2026-11-07 update: Windows 11 24H2 boots to the desktop on apollo, USB host works.** Working combination:
+> Mu-Silicium firmware with `mu/apolloPkg` (alioth binaries) + `mu/install-apollo.sh` defaults
+> (`--drop PRTC,PMAP --no-thermal --no-pep`, FB shifted 256 rows), booted with `fastboot boot Mu-apollo.img`;
+> WOA-Project Kona pack in Windows, testsigning on. The decisive change was `--no-pep` (no PEP: qcpep cannot
+> run on SM8250; see uefi/apollo/README.md, "Decision: run without Qualcomm's PEP"). The qcpep patches are no
+> longer needed (qcpep never binds) but are still installed on the phone.
+
 Written 2026-11-07 by the session that continued after the original one hit its limit. Branch:
 `claude/busy-johnson-ghrd5y` (all work below is pushed there). Read this, `git pull`, then
 `uefi/apollo/README.md` (sections "Root cause ... PEPH" onward) and `mu/README.md`.

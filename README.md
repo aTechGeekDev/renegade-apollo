@@ -47,6 +47,9 @@ on this phone:
 > [`AcpiTables/apollo/`](AcpiTables/apollo/). Compiles with 0 errors / 0 warnings. Remaining
 > work is on-device validation + a Novatek touch driver + PMIC/Wi-Fi/audio nodes.
 
+> **Milestone (2026-11-07): Windows 11 boots to the desktop on apollo, USB host works** (Mu-Silicium
+> firmware, `mu/`; see `docs/handoff.md`).
+
 **New to this? Start with the [beginner's guide](docs/noob-guide.md).**
 
 See [`docs/hardware-apollo.md`](docs/hardware-apollo.md) for the full chip/firmware map,
