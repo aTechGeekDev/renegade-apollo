@@ -6,6 +6,11 @@
 > WOA-Project Kona pack in Windows, testsigning on. The decisive change was `--no-pep` (no PEP: qcpep cannot
 > run on SM8250; see uefi/apollo/README.md, "Decision: run without Qualcomm's PEP"). The qcpep patches are no
 > longer needed (qcpep never binds) but are still installed on the phone.
+>
+> Own Windows drivers (`windrivers/`, built by `.github/workflows/drivers.yml`, published to the `driver-builds`
+> branch): `apollocpufreq` (EPSS CPU levels; install result not yet reported) and `apollotouch` (NT36675 touch,
+> KMDF + VHF, port of ios-apollo's sweet_touch.c; needs a UEFI built with `TOUCH=1` for `\_SB.TCH0`; untested on
+> the phone). Touch firmware comes from Xiaomi's apollo-q-oss ihex and is never committed.
 
 Written 2026-11-07 by the session that continued after the original one hit its limit. Branch:
 `claude/busy-johnson-ghrd5y` (all work below is pushed there). Read this, `git pull`, then
