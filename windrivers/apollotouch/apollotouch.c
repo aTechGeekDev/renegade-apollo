@@ -17,7 +17,8 @@
  *
  * Progress is written to HKLM\SYSTEM\CurrentControlSet\Services\apollotouch\Parameters (Status, TrimId, Firmware,
  * Reports) so the result can be read without a debugger; the same lines go to DbgPrintEx (IHVDRIVER).
- * Optional DWORD values there: PollMs (default 4), SpiDiv (default 4), StartDelayMs (default 0).
+ * Optional DWORD values there: PollMs (default 4), SpiDiv (default 4), StartDelayMs (default 0), TopRows (default 0:
+ * set it to the UEFI's FB_SHIFT when Windows draws only below that many panel rows, so touch maps onto that area).
  */
 #include <ntddk.h>
 #include <ntstrsafe.h>
@@ -182,7 +183,7 @@ typedef struct {
     KEVENT Stop;
     PUCHAR Se, Gcc, Tlmm, North;
     PUCHAR TileVa[3];
-    ULONG Errors, Active, PollMs, SpiDiv, StartDelayMs, Reports;
+    ULONG Errors, Active, PollMs, SpiDiv, StartDelayMs, Reports, TopRows;
     LONG X[TOUCH_MAX_FINGERS], Y[TOUCH_MAX_FINGERS];
     PUCHAR Fw;
     ULONG FwSize;
@@ -709,6 +710,10 @@ static VOID Parse(TOUCH_CTX *c, const UCHAR *R)
         y = (p[2] << 4) | (p[3] & 0x0f);
         if (x >= TOUCH_ABS_X) x = TOUCH_ABS_X - 1;
         if (y >= TOUCH_ABS_Y) y = TOUCH_ABS_Y - 1;
+        if (c->TopRows) {           /* framebuffer starts TopRows lower: map panel rows TopRows..2399 onto 0..2399 */
+            y = y < (LONG)c->TopRows ? 0 : (y - (LONG)c->TopRows) * TOUCH_ABS_Y / (TOUCH_ABS_Y - (LONG)c->TopRows);
+            if (y >= TOUCH_ABS_Y) y = TOUCH_ABS_Y - 1;
+        }
         now |= 1u << id;
         if (!(c->Active & (1u << id)) || c->X[id] != x || c->Y[id] != y) {
             c->X[id] = x;
@@ -853,6 +858,9 @@ static NTSTATUS EvtIoInit(WDFDEVICE Device)
     if (c->SpiDiv == 0 || c->SpiDiv > 255)
         c->SpiDiv = 4;
     c->StartDelayMs = ReadParam(L"StartDelayMs", 0);
+    c->TopRows = ReadParam(L"TopRows", 0);
+    if (c->TopRows >= TOUCH_ABS_Y)
+        c->TopRows = 0;
     KeInitializeEvent(&c->Stop, NotificationEvent, FALSE);
     InitializeObjectAttributes(&oa, NULL, OBJ_KERNEL_HANDLE, NULL, NULL);
     st = PsCreateSystemThread(&h, THREAD_ALL_ACCESS, &oa, NULL, NULL, Worker, c);
