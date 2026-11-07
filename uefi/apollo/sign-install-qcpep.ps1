@@ -35,8 +35,14 @@ if (Test-Path $drv) { $targets += $drv }
 if ($targets.Count -eq 0) { throw "No qcpep8250.sys under $win. Are the Kona drivers installed?" }
 
 function Unlock-File($path) {
-    takeown /f $path /a | Out-Null
-    icacls $path /grant '*S-1-5-32-544:F' | Out-Null      # Administrators
+    # The driver-store folders and files belong to TrustedInstaller: take the folder too, or creating the
+    # .orig backup next to the driver is refused.
+    foreach ($p in @((Split-Path $path -Parent), $path)) {
+        takeown /f $p /a | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw "takeown failed on $p" }
+        icacls $p /grant '*S-1-5-32-544:F' | Out-Null     # Administrators
+        if ($LASTEXITCODE -ne 0) { throw "icacls failed on $p" }
+    }
 }
 
 if ($Restore) {
@@ -67,11 +73,11 @@ Write-Host "signed (status '$($sig.Status)'; 'UnknownError'/'NotTrusted' is expe
 # 2. Replace every original copy, keeping a backup.
 foreach ($t in $targets) {
     $hash = (Get-FileHash $t -Algorithm SHA256).Hash
-    if (-not (Test-Path "$t.orig")) {
-        if ($hash -ne $OriginalSha256) { Write-Warning "skipping $t : not the 1.0.2140.0 driver ($hash)"; continue }
-        Copy-Item $t "$t.orig"
+    if (-not (Test-Path "$t.orig") -and $hash -ne $OriginalSha256) {
+        Write-Warning "skipping $t : not the 1.0.2140.0 driver ($hash)"; continue
     }
     Unlock-File $t
+    if (-not (Test-Path "$t.orig")) { Copy-Item $t "$t.orig" }
     Copy-Item $signed $t -Force
     Write-Host "installed $t"
 }
