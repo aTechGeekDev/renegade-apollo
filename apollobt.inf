@@ -1,0 +1,54 @@
+; apollobt.inf - QCA6390 Bluetooth for Windows on the Xiaomi Mi 10T / 10T Pro (apollo)
+; Binds ACPI\APLO0002 (\_SB.BTH0, added by make-apollo-dsdt.py --bt). Once the radio runs, the driver
+; adds a child with compatible ID MS_BTHX_BTHMINI, which Windows' inbox bth.inf gives to BthMini.
+
+[Version]
+Signature   = "$WINDOWS NT$"
+Class       = System
+ClassGuid   = {4d36e97d-e325-11ce-bfc1-08002be10318}
+Provider    = %Mfg%
+CatalogFile = apollobt.cat
+DriverVer   = 11/07/2026,1.0.10.0
+PnpLockdown = 1
+
+[DestinationDirs]
+DefaultDestDir = 13
+
+[SourceDisksNames]
+1 = %Disk%
+
+[SourceDisksFiles]
+apollobt.sys = 1
+
+[Manufacturer]
+%Mfg% = Models, NTarm64
+
+[Models.NTarm64]
+%Desc% = Bt, ACPI\APLO0002
+
+[Bt.NT]
+CopyFiles = Bt.Files
+
+[Bt.Files]
+apollobt.sys
+
+[Bt.NT.Services]
+AddService = apollobt, 0x00000002, Bt.Service
+
+[Bt.Service]
+DisplayName   = %Desc%
+ServiceType   = 1
+StartType     = 3
+ErrorControl  = 1
+ServiceBinary = %13%\apollobt.sys
+
+[Bt.NT.Wdf]
+KmdfService = apollobt, Bt.Wdf
+
+[Bt.Wdf]
+KmdfLibraryVersion = 1.15
+
+[Strings]
+Mfg  = "renegade-apollo"
+Disk = "apollobt"
+Desc = "apollo Bluetooth bus (QCA6390 UART)"

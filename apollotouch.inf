@@ -1,0 +1,60 @@
+; apollotouch.inf - NT36675 touchscreen for Windows on the Xiaomi Mi 10T / 10T Pro (apollo)
+; Binds ACPI\APLO0001 (\_SB.TCH0, added by make-apollo-dsdt.py --touch). vhf.sys is the lower filter
+; that turns the driver's reports into a HID touch screen.
+
+[Version]
+Signature   = "$WINDOWS NT$"
+Class       = System
+ClassGuid   = {4d36e97d-e325-11ce-bfc1-08002be10318}
+Provider    = %Mfg%
+CatalogFile = apollotouch.cat
+DriverVer   = 11/07/2026,1.0.10.0
+PnpLockdown = 1
+
+[DestinationDirs]
+DefaultDestDir = 13
+
+[SourceDisksNames]
+1 = %Disk%
+
+[SourceDisksFiles]
+apollotouch.sys = 1
+
+[Manufacturer]
+%Mfg% = Models, NTarm64
+
+[Models.NTarm64]
+%Desc% = Touch, ACPI\APLO0001
+
+[Touch.NT]
+CopyFiles = Touch.Files
+
+[Touch.Files]
+apollotouch.sys
+
+[Touch.NT.HW]
+AddReg = Touch.Filter
+
+[Touch.Filter]
+HKR,,"LowerFilters",0x00010000,"vhf"
+
+[Touch.NT.Services]
+AddService = apollotouch, 0x00000002, Touch.Service
+
+[Touch.Service]
+DisplayName   = %Desc%
+ServiceType   = 1               ; kernel driver
+StartType     = 3               ; demand (PnP)
+ErrorControl  = 1
+ServiceBinary = %13%\apollotouch.sys
+
+[Touch.NT.Wdf]
+KmdfService = apollotouch, Touch.Wdf
+
+[Touch.Wdf]
+KmdfLibraryVersion = 1.15
+
+[Strings]
+Mfg  = "renegade-apollo"
+Disk = "apollotouch"
+Desc = "apollo touch screen (NT36675)"
