@@ -204,6 +204,17 @@ With the LMh-patched qcpep (Mu-Silicium firmware), AddDevice completes and Windo
 qcpep's own config for the display RSC expects 2 TCS; only the table minimum (`+0x19ff84`) is 4.
 `patch-qcpep-lmh.py` now also lowers it to 2.
 
+### Decision: run without Qualcomm's PEP (as the working alioth port does)
+After the RSC fix, qcpep failed its next start-up step (`SOC_CRITICAL_DEVICE_REMOVED`, tag `qpe0`). The
+[K40_Win11 / Alioth-Engineering](https://github.com/zhishixuebao-0791/K40_Win11) project (Poco F3, SM8250,
+Mu-Silicium) found independently that the WOA `qcpep8250.sys` is internally `qcpep8180.sys` with SM8150/8180
+LMh addresses hard-coded, and that `qcpep8280.sys` hangs on SC8280XP-only TSENS controllers: neither runs on
+SM8250. Their Windows boots to the desktop without a PEP: Silicium's alioth DSDT gives UFS0 no `_DEP`.
+`make-apollo-dsdt.py --no-pep` (default in `mu/install-apollo.sh`) removes `\_SB.PEP0` from every `_DEP` and
+renames PEP0's `_HID` to the unused `QCOM25FF`, so storage no longer waits for it and qcpep never binds.
+Cost: devices that need the PEP interface (SMMU, DSP loaders, GPU) stay off, as on alioth today; a stub PEP
+([alioth-woa-drivers](https://github.com/18934020489Xx/alioth-woa-drivers) `qcfakepep`) is the later route.
+
 ### Debug: kernel debugger over USB (KDNET)
 edk2-msm's sm8250 build ships no DBG2 table, so Windows has no debug port. Qualcomm's Kona DBG2 (shipped
 unchanged by Silicium's pipa) describes KDNET over USB EEM on both USB controllers (port type `0x8003`,

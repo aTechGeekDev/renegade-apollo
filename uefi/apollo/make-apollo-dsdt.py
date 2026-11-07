@@ -3,10 +3,13 @@
 
     git clone --depth 1 https://github.com/Project-Silicium/Silicium-ACPI
     python3 make-apollo-dsdt.py Silicium-ACPI/Platforms/Xiaomi/pipa/Decompiled/DSDT.dsl Dsdt.asl
-        [--drop NAME,NAME,...] [--no-thermal]
+        [--drop NAME,NAME,...] [--no-thermal] [--no-pep]
 
 --drop and --no-thermal remove further devices / all thermal zones on top of the fixed list;
 they exist for bisecting boot crashes (see README.md, "Bisecting a boot crash").
+--no-pep: nothing depends on PEP0 and no driver binds it (its _HID becomes the unused QCOM25FF), as in
+Silicium's alioth table, where UFS0 has no _DEP and Windows boots without a PEP. Qualcomm's qcpep
+cannot run on SM8250 (LMh/RSC/TSENS addresses of other chips; see README.md).
 
 Needs `iasl` on PATH. Steps (each one checked on the device, see README.md):
   1. drop pipa devices that are board-specific, unsafe on apollo or need pipa's memory carve-outs
@@ -129,7 +132,29 @@ def repair(path):
     return compile_errors(path)
 
 
-def main(src, dst, extra=frozenset(), no_thermal=False):
+def unhook_pep(text):
+    """Remove \\_SB.PEP0 from every _DEP (dropping _DEPs that become empty); rename PEP0's _HID."""
+    def fix(m):
+        body = m.group(0)
+        items = [x for x in re.findall(r'\\_SB\.[A-Z0-9_.]+', body) if x != '\\_SB.PEP0']
+        if len(items) == len(re.findall(r'\\_SB\.[A-Z0-9_.]+', body)):
+            return body
+        if not items:
+            return ''
+        ind = re.match(r'\s*', body).group(0)
+        return (f'{ind}Name (_DEP, Package ({len(items)})  // PEP0 removed\n{ind}{{\n'
+                + ',\n'.join(f'{ind}    {x}' for x in items) + f'\n{ind}}})')
+    text, n = re.subn(r'[ \t]*Name \(_DEP, Package \([^)]*\)[^\n]*\n\s*\{[^}]*\}\)', fix, text)
+    # Method (_DEP) { Return (Package (...) { \_SB.PEP0 }) } forms
+    text = re.sub(r'(Return \(Package \([^)]*\)\s*\{\s*)\\_SB\.PEP0(\s*\}\))', r'\1\2', text)
+    lines = text.splitlines(keepends=True)
+    i = next(k for k, l in enumerate(lines) if re.match(r'\s*Device \(PEP0\)', l))
+    j = next(k for k in range(i, i + 6) if 'Name (_HID, "QCOM2519")' in lines[k])
+    lines[j] = lines[j].replace('"QCOM2519"', '"QCOM25FF"') .rstrip('\n') + '  // was QCOM2519 (qcpep): unbound\n'
+    return ''.join(lines)
+
+
+def main(src, dst, extra=frozenset(), no_thermal=False, no_pep=False):
     drop = DROP | set(extra)
     text = open(src).read()
     text = drop_devices(text, drop, no_thermal)
@@ -139,6 +164,8 @@ def main(src, dst, extra=frozenset(), no_thermal=False):
     text = re.sub(r'QCOM05([0-9A-F]{2})', r'QCOM25\1', text)
     text = re.sub(r'VEN_QCOM&DEV_05([0-9A-F]{2})', r'VEN_QCOM&DEV_25\1', text)
     text, n_rails = remap_ufs_rails(text)
+    if no_pep:
+        text = unhook_pep(text)
     text = re.sub(r'DefinitionBlock \("[^"]*", "DSDT"', 'DefinitionBlock ("DSDT.AML", "DSDT"', text, count=1)
     # decompiler quirks: _DEP written as strings; URS0's _HID given through an Alias
     text = re.sub(r'Name \(_DEP, Package \([^)]*\)[^\n]*\n\s*\{.*?\}\)',
@@ -172,6 +199,9 @@ def main(src, dst, extra=frozenset(), no_thermal=False):
 
 if __name__ == '__main__':
     args, extra, no_thermal = sys.argv[1:], set(), False
+    no_pep = '--no-pep' in args
+    if no_pep:
+        args.remove('--no-pep')
     if '--no-thermal' in args:
         args.remove('--no-thermal')
         no_thermal = True
@@ -181,4 +211,4 @@ if __name__ == '__main__':
         del args[k:k + 2]
     if len(args) != 2:
         sys.exit(__doc__)
-    main(args[0], args[1], extra, no_thermal)
+    main(args[0], args[1], extra, no_thermal, no_pep)
