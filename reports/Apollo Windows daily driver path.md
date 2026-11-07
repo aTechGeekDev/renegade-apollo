@@ -238,3 +238,15 @@ Steps 4–5 and step 8 share their hardest groundwork: RPMh votes (already in `a
 "Fix qcpep" turns out to be the wrong unit of work. The four goals hang on four different things: a PCIe link for Wi-Fi, the ADSP for audio, a full power stack for the GPU, and missing wiring for HDMI. The PEP is the critical path only for the goal that is least reachable anyway. Every Windows port of this SoC has stalled at the same PEP wall, which means the evidence base for SM8250 Windows features is thinner than it looks. Each claim of progress (qcfakepep's README, Silicium's ✅) needs to be read as a hypothesis until someone publishes a log. apollo's real advantage is different: ios-apollo has already proven every hardware sequence for Wi-Fi, audio and the GPU on this exact phone. Porting proven sequences into small, registry-reporting Windows drivers has a known shape. Patching another chip's power driver does not.
 
 The most consequential near-term fact is not about PEP at all. A stub PEP that merely satisfies qcsmmu could turn the SMMU, the shared hard problem behind both Wi-Fi DMA and ADSP audio, from hand-written code into a Qualcomm-maintained driver. If two boots of a logging stub show qcsmmu starting cleanly, the order above should shift to lean on it. If they don't, nothing is lost: the native Wi-Fi and audio plans never depended on it.
+
+
+## Addendum (2026-11-07): board schematic confirms no USB-C high-speed lanes
+Checked in a Mi 10T Pro board schematic supplied by the user (not committed: third-party document). Verified:
+- The SoC's `USB0_SS_TX0/TX1/RX0/RX1` and `DP_AUX_P/M` pins appear only on the SoC pin page (p.28); no other page
+  carries those nets, so they are not routed.
+- The USB-C port is on a sub-board joined by board-to-board connector J6500 (p.58). It carries only USB 2.0
+  (`USB0_HS_DP/DM` via the FSA4480 as `USB_HS_DP_RIGHT/DN_LEFT`), `USB_CC1/CC2`, `SBU1/SBU2` (FSA4480 analog audio /
+  debug UART) and `USB_VBUS`. No SuperSpeed or DisplayPort pairs reach the port board.
+- The only other `USB_SS_*` nets (p.16) belong to the SDX55 modem link.
+Conclusion: DisplayPort Alt Mode (USB-C to HDMI adapters/hubs) is impossible on apollo in hardware; no kernel,
+driver or firmware change can enable it. External display = DisplayLink (USB 2.0) or remote desktop.

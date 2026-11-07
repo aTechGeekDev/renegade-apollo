@@ -242,3 +242,15 @@ have no current Windows driver.
 ### Gaps
 - No hands-on report of a specific adapter model on apollo/Windows. A "known good" product list for WOA phones does
   not exist in the sources I could reach.
+
+
+## Addendum (2026-11-07): board schematic confirms no USB-C high-speed lanes
+Checked in a Mi 10T Pro board schematic supplied by the user (not committed: third-party document). Verified:
+- The SoC's `USB0_SS_TX0/TX1/RX0/RX1` and `DP_AUX_P/M` pins appear only on the SoC pin page (p.28); no other page
+  carries those nets, so they are not routed.
+- The USB-C port is on a sub-board joined by board-to-board connector J6500 (p.58). It carries only USB 2.0
+  (`USB0_HS_DP/DM` via the FSA4480 as `USB_HS_DP_RIGHT/DN_LEFT`), `USB_CC1/CC2`, `SBU1/SBU2` (FSA4480 analog audio /
+  debug UART) and `USB_VBUS`. No SuperSpeed or DisplayPort pairs reach the port board.
+- The only other `USB_SS_*` nets (p.16) belong to the SDX55 modem link.
+Conclusion: DisplayPort Alt Mode (USB-C to HDMI adapters/hubs) is impossible on apollo in hardware; no kernel,
+driver or firmware change can enable it. External display = DisplayLink (USB 2.0) or remote desktop.
