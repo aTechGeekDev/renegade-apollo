@@ -34,7 +34,7 @@ $drivers = @(
     @{ Name = 'apollocpufreq'; Entry = 'DriverEntry'; Inc = @(); Defs = @(); Libs = @() },
     @{ Name = 'apollotouch'; Entry = 'FxDriverEntry'; Inc = @($kmdfInc.FullName)
        Defs = @('/wd4324', '/DKMDF_VERSION_MAJOR=1', "/DKMDF_VERSION_MINOR=$($kmdfVer.Split('.')[1])")
-       Libs = @("/LIBPATH:`"$($kmdfLib.DirectoryName)`"", 'WdfDriverEntry.lib', 'WdfLdr.lib', 'vhfkm.lib', 'hal.lib') }
+       Libs = @("/LIBPATH:`"$($kmdfLib.DirectoryName)`"", 'WdfDriverEntry.lib', 'WdfLdr.lib', 'vhfkm.lib', 'hal.lib', 'libcntpr.lib') }   # libcntpr: vhfkm.lib's _Interlocked* / __security_push_cookie
 )
 
 foreach ($d in $drivers) {
