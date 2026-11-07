@@ -128,7 +128,9 @@ $cer = Join-Path $env:TEMP 'renegade-apollo-test.cer'
 Export-Certificate -Cert $cert -FilePath $cer | Out-Null
 foreach ($store in 'Root', 'TrustedPublisher') {
     if (-not (Get-ChildItem "Cert:\LocalMachine\$store" | Where-Object Thumbprint -eq $cert.Thumbprint)) {
-        Import-Certificate -FilePath $cer -CertStoreLocation "Cert:\LocalMachine\$store" | Out-Null
+        # certutil, not Import-Certificate: the latter is refused (E_ACCESSDENIED) for LocalMachine\Root on apollo
+        certutil -addstore -f $store $cer | Out-Null
+        if ($LASTEXITCODE) { throw "certutil -addstore $store failed ($LASTEXITCODE)" }
     }
 }
 
