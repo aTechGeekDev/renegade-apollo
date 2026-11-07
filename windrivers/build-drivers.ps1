@@ -33,7 +33,7 @@ $defs = '/D_ARM64_', '/DARM64', '/D_WIN64', '/D_WIN32_WINNT=0x0A00', '/DWINVER=0
 $drivers = @(
     @{ Name = 'apollocpufreq'; Entry = 'DriverEntry'; Inc = @(); Defs = @(); Libs = @() },
     @{ Name = 'apollotouch'; Entry = 'FxDriverEntry'; Inc = @($kmdfInc.FullName)
-       Defs = @('/DKMDF_VERSION_MAJOR=1', "/DKMDF_VERSION_MINOR=$($kmdfVer.Split('.')[1])")
+       Defs = @('/wd4324', '/DKMDF_VERSION_MAJOR=1', "/DKMDF_VERSION_MINOR=$($kmdfVer.Split('.')[1])")
        Libs = @("/LIBPATH:`"$($kmdfLib.DirectoryName)`"", 'WdfDriverEntry.lib', 'WdfLdr.lib', 'vhfkm.lib', 'hal.lib') }
 )
 
