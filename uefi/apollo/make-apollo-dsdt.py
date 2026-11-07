@@ -3,7 +3,7 @@
 
     git clone --depth 1 https://github.com/Project-Silicium/Silicium-ACPI
     python3 make-apollo-dsdt.py Silicium-ACPI/Platforms/Xiaomi/pipa/Decompiled/DSDT.dsl Dsdt.asl
-        [--drop NAME,NAME,...] [--no-thermal] [--no-pep] [--touch]
+        [--drop NAME,NAME,...] [--no-thermal] [--no-pep] [--touch] [--bt]
 
 --drop and --no-thermal remove further devices / all thermal zones on top of the fixed list;
 they exist for bisecting boot crashes (see README.md, "Bisecting a boot crash").
@@ -12,6 +12,8 @@ Silicium's alioth table, where UFS0 has no _DEP and Windows boots without a PEP.
 cannot run on SM8250 (LMh/RSC/TSENS addresses of other chips; see README.md).
 --touch: add \\_SB.TCH0 (_HID APLO0001), a resource-less device that apollotouch.sys binds to; the driver
 drives the NT36675 touch controller's SPI engine, clocks and pins itself (windrivers/apollotouch).
+--bt: add \\_SB.BTH0 (_HID APLO0002) for apollobt.sys, which drives the QCA6390's Bluetooth UART (QUP0 SE6),
+its rails (RPMh) and BT_EN itself (windrivers/apollobt).
 
 Needs `iasl` on PATH. Steps (each one checked on the device, see README.md):
   1. drop pipa devices that are board-specific, unsafe on apollo or need pipa's memory carve-outs
@@ -170,15 +172,20 @@ TOUCH_DEVICE = """\
 """
 
 
-def add_touch(text):
+BT_DEVICE = TOUCH_DEVICE.replace('TCH0', 'BTH0').replace('APLO0001', 'APLO0002').replace(
+    'NT36675 touch on QUP0 SE4 SPI: driven directly by apollotouch.sys (windrivers/apollotouch)',
+    'QCA6390 Bluetooth on QUP0 SE6 UART: driven directly by apollobt.sys (windrivers/apollobt)')
+
+
+def add_device(text, device):
     lines = text.splitlines(keepends=True)
     s = next(k for k, l in enumerate(lines) if l.rstrip() == '    Scope (\\_SB)')
     b = next(k for k in range(s, s + 3) if lines[k].strip() == '{')
-    lines.insert(b + 1, TOUCH_DEVICE)
+    lines.insert(b + 1, device)
     return ''.join(lines)
 
 
-def main(src, dst, extra=frozenset(), no_thermal=False, no_pep=False, touch=False):
+def main(src, dst, extra=frozenset(), no_thermal=False, no_pep=False, touch=False, bt=False):
     drop = DROP | set(extra)
     text = open(src).read()
     text = drop_devices(text, drop, no_thermal)
@@ -191,7 +198,9 @@ def main(src, dst, extra=frozenset(), no_thermal=False, no_pep=False, touch=Fals
     if no_pep:
         text = unhook_pep(text)
     if touch:
-        text = add_touch(text)
+        text = add_device(text, TOUCH_DEVICE)
+    if bt:
+        text = add_device(text, BT_DEVICE)
     text = re.sub(r'DefinitionBlock \("[^"]*", "DSDT"', 'DefinitionBlock ("DSDT.AML", "DSDT"', text, count=1)
     # decompiler quirks: _DEP written as strings; URS0's _HID given through an Alias
     text = re.sub(r'Name \(_DEP, Package \([^)]*\)[^\n]*\n\s*\{.*?\}\)',
@@ -231,6 +240,9 @@ if __name__ == '__main__':
     touch = '--touch' in args
     if touch:
         args.remove('--touch')
+    bt = '--bt' in args
+    if bt:
+        args.remove('--bt')
     if '--no-thermal' in args:
         args.remove('--no-thermal')
         no_thermal = True
@@ -240,4 +252,4 @@ if __name__ == '__main__':
         del args[k:k + 2]
     if len(args) != 2:
         sys.exit(__doc__)
-    main(args[0], args[1], extra, no_thermal, no_pep, touch)
+    main(args[0], args[1], extra, no_thermal, no_pep, touch, bt)
