@@ -20,7 +20,7 @@ fastboot boot Mu-apollo.img
 `BT=1` (\_SB.BTH0, APLO0002), `FB_SHIFT=0` (full screen; 256 only for reading bugcheck text under the camera hole),
 `LOGO=<dump of the phone's logo partition>` -> `make-boot-logo.py` crops the Mi logo into SiliciumPkg's BootLogo.bmp
 (local checkout only; `LOGO=silicium` restores). Logo dump: `adb shell dd if=/dev/block/by-name/logo of=/tmp/logo.img`
-then `adb pull` (from recovery). **Status: the TOUCH/BT/LOGO/FB_SHIFT=0 rebuild has not been reported back yet.**
+then `adb pull` (from recovery). **Status: rebuilt and confirmed by the user (2026-11-07): Mi logo shows.**
 
 ### Own Windows drivers (`windrivers/`)
 Built by `.github/workflows/drivers.yml` (windows-latest, WDK NuGet 10.0.26100.2454, KMDF 1.15) on every push to
@@ -34,8 +34,8 @@ each installer has `-Status` and `-Remove`).
 
 | Driver | What | Status on the phone |
 | --- | --- | --- |
-| `apollocpufreq` | legacy driver: EPSS domains 0x18591000/2000/3000, top LUT row <= `MaxMHz` | built; **not yet run/reported**. No thermal zones exist -> advise a cap (`-MaxMHz 1800`) until a governor with a TSENS limit (ios-apollo 0153) is ported |
-| `apollotouch` | NT36675 on QUP0 SE4 SPI 0x990000 (GCC clocks, gpio8-11, reset gpio38, IRQ gpio39 polled), firmware download from `System32\drivers\novatek_nt36675_j3s_fw01.bin` (installer converts Xiaomi's apollo-q-oss ihex, SHA-256 checked; never committed), HID via **VHF** (10-finger touchscreen) | **WORKS** (user: "touch working"). Was offset only because of FB_SHIFT=256 (fixed by FB_SHIFT=0; `TopRows` param exists for shifted builds). Long press registered as a tap -> fixed in 1.0.9.0 (safety-poll frames no longer lift contacts; held contacts re-sent every 25 ms); **1.0.9.0 not yet confirmed** |
+| `apollocpufreq` | legacy driver: EPSS domains 0x18591000/2000/3000, top LUT row <= `MaxMHz` | **installed, works** (user, 2026-11-07). No thermal zones exist -> keep a cap (`-MaxMHz 1800`) until a governor with a TSENS limit (ios-apollo 0153) is ported |
+| `apollotouch` | NT36675 on QUP0 SE4 SPI 0x990000 (GCC clocks, gpio8-11, reset gpio38, IRQ gpio39 polled), firmware download from `System32\drivers\novatek_nt36675_j3s_fw01.bin` (installer converts Xiaomi's apollo-q-oss ihex, SHA-256 checked; never committed), HID via **VHF** (10-finger touchscreen) | **WORKS** (user: "touch working"). Was offset only because of FB_SHIFT=256 (fixed by FB_SHIFT=0; `TopRows` param exists for shifted builds). Long press registered as a tap -> fixed in 1.0.9.0 (safety-poll frames no longer lift contacts; held contacts re-sent every 25 ms); **long press confirmed working** |
 | `apollobt` | QCA6390 Bluetooth: RPMh votes (cmd-db 0x80860000; smpa6/smpa5/smpc8/ldoa16), BT_EN gpio21, SE6 UART 0x998000 (gpio16-19) polled, ROM check, phone's firmware `htbtfw20.tlv` + `htnv20.bin` (from its `bluetooth` partition; ios-apollo `tools/pull-bt-fw.sh`), UART to 921600, IBS; then a child PDO `apollobt\UART_H4` with compatible ID `MS_BTHX_BTHMINI` -> inbox BthMini (IOCTL_BTHX_*, bthxddi.h) | built (1.0.10.0, zip sent); **never run**. Params: `Steps` 1-5 (1-4 diagnostic only), `Baud`, `Address` (REG_BINARY 6). If Windows hangs after install: boot a UEFI built with `BT=0` |
 
 ### Wi-Fi (researched, not started)
@@ -51,7 +51,7 @@ Also found: alioth's `qcfakepep` (stub PEP, github.com/18934020489Xx/alioth-woa-
 audio chain; WOA-Kona/Drivers has MIT GPIO/SPMI/PMIC drivers. Silicium's status lists alioth Windows BT/speakers/sensors working.
 
 ### Open items / what the user is waiting on
-1. Results: rebuilt UEFI (logo, full screen, TCH0+BTH0), touch 1.0.9.0 long press, apollobt install output, apollocpufreq + winsat.
+1. Results: logo, touch long press and apollocpufreq confirmed (2026-11-07). Still open: apollobt install output (next test).
 2. User asked about Windows Update: advised OK with driver updates blocked (ExcludeWUDriversInQualityUpdate=1,
    SearchOrderConfig=0), restore point, full battery, no max-clock cpufreq, skip feature updates, re-`fastboot boot` on each restart.
 3. ios-apollo ports still possible: CPU governor + TSENS thermal limit (0153, safety), WLED brightness (0151/0154),
