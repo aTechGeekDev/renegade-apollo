@@ -17,6 +17,11 @@
 # FB_SHIFT=256 (default) moves the framebuffer 256 rows down so the text printed in the top-left corner
 # (Windows bugcheck codes, UEFI exceptions) is not hidden by the punch-hole camera. Multiples of 128 only.
 # FB_SHIFT=0 installs the normal full-screen framebuffer (re-run the script to switch).
+#
+# LOGO=~/logo.img uses the Xiaomi logo from a dump of the phone's `logo` partition as the boot logo (UEFI and the
+# Windows boot screen): make-boot-logo.py crops it into SiliciumPkg's BootLogo.bmp in this Mu-Silicium checkout
+# only (the original is kept as BootLogo.bmp.silicium). LOGO_INDEX picks another image in the partition.
+# LOGO=silicium puts Silicium's logo back. Without LOGO the logo is left as it is.
 set -euo pipefail
 
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -25,6 +30,8 @@ EDK=${EDK:-$HOME/edk2-msm}
 FB_SHIFT=${FB_SHIFT:-256}
 DROP=${DROP:-PRTC,PMAP}   # extra DSDT devices to leave out
 NO_PEP=${NO_PEP:-1}       # 1: nothing waits on PEP0 and qcpep never binds (as in alioth); 0: pipa behaviour
+LOGO=${LOGO:-}
+LOGO_INDEX=${LOGO_INDEX:-0}
 TOUCH=${TOUCH:-1}         # 1: add \_SB.TCH0 (APLO0001) for apollotouch.sys; 0: leave it out
 GEN=$HERE/../uefi/apollo/make-apollo-dsdt.py
 DTB=$EDK/Platform/Xiaomi/sm8250/FdtBlob_compat/apollo.dtb
@@ -58,6 +65,18 @@ if [ "$FB_SHIFT" -ne 0 ]; then
     grep -q "$FB_ADDR, $FB_LEN" "$MAP" && grep -q "PcdFrameBufferHeight|$((2400 - FB_SHIFT))" "$MU/Platforms/Xiaomi/apolloPkg/apollo.dsc" \
         || { echo "could not apply FB_SHIFT" >&2; exit 1; }
     echo "== framebuffer shifted $FB_SHIFT rows: $FB_ADDR, height $((2400 - FB_SHIFT))"
+fi
+
+if [ -n "$LOGO" ]; then
+    BL=$MU/Silicon/Silicium/SiliciumPkg/Include/Resources/BootLogo.bmp
+    [ -e "$BL.silicium" ] || cp "$BL" "$BL.silicium"
+    if [ "$LOGO" = silicium ]; then
+        cp "$BL.silicium" "$BL"; echo "== boot logo: Silicium's"
+    else
+        need "$LOGO" "dump of the phone's logo partition"
+        python3 "$HERE/make-boot-logo.py" "$LOGO" "$BL" --index "$LOGO_INDEX"
+        echo "== boot logo: from $LOGO (image $LOGO_INDEX)"
+    fi
 fi
 
 echo "== ACPI"

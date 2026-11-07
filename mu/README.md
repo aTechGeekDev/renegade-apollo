@@ -23,3 +23,10 @@ at `0x9C10E000`, height 2144) so bugcheck codes and UEFI exception text clear th
 with `FB_SHIFT=0` for a full-screen build.
 
 The Windows install and its WOA-Project Kona drivers stay as they are: the DSDT uses the same QCOM25xx IDs.
+
+Boot logo (Xiaomi instead of Silicium): dump the phone's `logo` partition from recovery and pass it as LOGO.
+The image stays local; make-boot-logo.py crops the Mi logo out of the first full-screen splash.
+
+    adb shell dd if=/dev/block/by-name/logo of=/tmp/logo.img
+    adb pull /tmp/logo.img ~/logo.img
+    LOGO=~/logo.img bash install-apollo.sh       (LOGO=silicium restores the original)
