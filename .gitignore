@@ -40,6 +40,7 @@ logs/
 
 # Mu-Silicium build files (EDK2 module/ACPI .inf, not Windows driver INFs)
 !mu/**/*.inf
+!windrivers/*/*.inf
 
 # Python
 __pycache__/

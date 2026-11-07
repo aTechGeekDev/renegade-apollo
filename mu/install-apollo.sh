@@ -25,6 +25,7 @@ EDK=${EDK:-$HOME/edk2-msm}
 FB_SHIFT=${FB_SHIFT:-256}
 DROP=${DROP:-PRTC,PMAP}   # extra DSDT devices to leave out
 NO_PEP=${NO_PEP:-1}       # 1: nothing waits on PEP0 and qcpep never binds (as in alioth); 0: pipa behaviour
+TOUCH=${TOUCH:-1}         # 1: add \_SB.TCH0 (APLO0001) for apollotouch.sys; 0: leave it out
 GEN=$HERE/../uefi/apollo/make-apollo-dsdt.py
 DTB=$EDK/Platform/Xiaomi/sm8250/FdtBlob_compat/apollo.dtb
 PIPA_DSL=$MU/Silicium-ACPI/Platforms/Xiaomi/pipa/Decompiled/DSDT.dsl
@@ -63,6 +64,7 @@ echo "== ACPI"
 OUT=$MU/Silicium-ACPI/Platforms/Xiaomi/apollo
 TMP=$(mktemp -d)
 PEPARG=""; [ "$NO_PEP" = 1 ] && PEPARG=--no-pep
+[ "$TOUCH" = 1 ] && PEPARG="$PEPARG --touch"
 # shellcheck disable=SC2086
 python3 "$GEN" "$PIPA_DSL" "$TMP/Dsdt.asl" --drop "$DROP" --no-thermal $PEPARG | tail -2
 mkdir -p "$OUT"

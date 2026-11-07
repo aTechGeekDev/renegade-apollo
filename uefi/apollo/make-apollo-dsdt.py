@@ -3,13 +3,15 @@
 
     git clone --depth 1 https://github.com/Project-Silicium/Silicium-ACPI
     python3 make-apollo-dsdt.py Silicium-ACPI/Platforms/Xiaomi/pipa/Decompiled/DSDT.dsl Dsdt.asl
-        [--drop NAME,NAME,...] [--no-thermal] [--no-pep]
+        [--drop NAME,NAME,...] [--no-thermal] [--no-pep] [--touch]
 
 --drop and --no-thermal remove further devices / all thermal zones on top of the fixed list;
 they exist for bisecting boot crashes (see README.md, "Bisecting a boot crash").
 --no-pep: nothing depends on PEP0 and no driver binds it (its _HID becomes the unused QCOM25FF), as in
 Silicium's alioth table, where UFS0 has no _DEP and Windows boots without a PEP. Qualcomm's qcpep
 cannot run on SM8250 (LMh/RSC/TSENS addresses of other chips; see README.md).
+--touch: add \\_SB.TCH0 (_HID APLO0001), a resource-less device that apollotouch.sys binds to; the driver
+drives the NT36675 touch controller's SPI engine, clocks and pins itself (windrivers/apollotouch).
 
 Needs `iasl` on PATH. Steps (each one checked on the device, see README.md):
   1. drop pipa devices that are board-specific, unsafe on apollo or need pipa's memory carve-outs
@@ -154,7 +156,29 @@ def unhook_pep(text):
     return ''.join(lines)
 
 
-def main(src, dst, extra=frozenset(), no_thermal=False, no_pep=False):
+TOUCH_DEVICE = """\
+        Device (TCH0)  // NT36675 touch on QUP0 SE4 SPI: driven directly by apollotouch.sys (windrivers/apollotouch)
+        {
+            Name (_HID, "APLO0001")  // _HID: Hardware ID
+            Name (_UID, Zero)  // _UID: Unique ID
+            Method (_STA, 0, NotSerialized)  // _STA: Status
+            {
+                Return (0x0F)
+            }
+        }
+
+"""
+
+
+def add_touch(text):
+    lines = text.splitlines(keepends=True)
+    s = next(k for k, l in enumerate(lines) if l.rstrip() == '    Scope (\\_SB)')
+    b = next(k for k in range(s, s + 3) if lines[k].strip() == '{')
+    lines.insert(b + 1, TOUCH_DEVICE)
+    return ''.join(lines)
+
+
+def main(src, dst, extra=frozenset(), no_thermal=False, no_pep=False, touch=False):
     drop = DROP | set(extra)
     text = open(src).read()
     text = drop_devices(text, drop, no_thermal)
@@ -166,6 +190,8 @@ def main(src, dst, extra=frozenset(), no_thermal=False, no_pep=False):
     text, n_rails = remap_ufs_rails(text)
     if no_pep:
         text = unhook_pep(text)
+    if touch:
+        text = add_touch(text)
     text = re.sub(r'DefinitionBlock \("[^"]*", "DSDT"', 'DefinitionBlock ("DSDT.AML", "DSDT"', text, count=1)
     # decompiler quirks: _DEP written as strings; URS0's _HID given through an Alias
     text = re.sub(r'Name \(_DEP, Package \([^)]*\)[^\n]*\n\s*\{.*?\}\)',
@@ -202,6 +228,9 @@ if __name__ == '__main__':
     no_pep = '--no-pep' in args
     if no_pep:
         args.remove('--no-pep')
+    touch = '--touch' in args
+    if touch:
+        args.remove('--touch')
     if '--no-thermal' in args:
         args.remove('--no-thermal')
         no_thermal = True
@@ -211,4 +240,4 @@ if __name__ == '__main__':
         del args[k:k + 2]
     if len(args) != 2:
         sys.exit(__doc__)
-    main(args[0], args[1], extra, no_thermal, no_pep)
+    main(args[0], args[1], extra, no_thermal, no_pep, touch)
