@@ -1,0 +1,29 @@
+name: Build apollo Windows drivers (ARM64)
+
+on:
+  push:
+    paths: ['windrivers/**', '.github/workflows/drivers.yml']
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: WDK and SDK packages
+        shell: pwsh
+        run: |
+          $v = '10.0.26100.2454'
+          foreach ($p in 'Microsoft.Windows.WDK.ARM64', 'Microsoft.Windows.SDK.CPP', 'Microsoft.Windows.SDK.CPP.arm64') {
+            nuget install $p -Version $v -OutputDirectory windrivers\packages -NonInteractive
+            if ($LASTEXITCODE) { throw "nuget $p" }
+          }
+      - name: Build
+        shell: pwsh
+        run: .\windrivers\build-drivers.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apollo-drivers-arm64
+          path: |
+            windrivers/out/*.sys
+            windrivers/out/*.pdb
