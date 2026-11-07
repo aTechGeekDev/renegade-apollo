@@ -23,6 +23,7 @@ HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 MU=${MU:-$HOME/Mu-Silicium}
 EDK=${EDK:-$HOME/edk2-msm}
 FB_SHIFT=${FB_SHIFT:-256}
+DROP=${DROP:-PRTC}        # extra DSDT devices to leave out, e.g. DROP=PRTC,PMAP
 GEN=$HERE/../uefi/apollo/make-apollo-dsdt.py
 DTB=$EDK/Platform/Xiaomi/sm8250/FdtBlob_compat/apollo.dtb
 PIPA_DSL=$MU/Silicium-ACPI/Platforms/Xiaomi/pipa/Decompiled/DSDT.dsl
@@ -60,7 +61,7 @@ fi
 echo "== ACPI"
 OUT=$MU/Silicium-ACPI/Platforms/Xiaomi/apollo
 TMP=$(mktemp -d)
-python3 "$GEN" "$PIPA_DSL" "$TMP/Dsdt.asl" --drop PRTC --no-thermal | tail -2
+python3 "$GEN" "$PIPA_DSL" "$TMP/Dsdt.asl" --drop "$DROP" --no-thermal | tail -2
 mkdir -p "$OUT"
 cp "$TMP/DSDT.aml" "$OUT/DSDT.aml"
 cp "$HERE/Silicium-ACPI/Platforms/Xiaomi/apollo/AcpiTables.inf" "$OUT/"
