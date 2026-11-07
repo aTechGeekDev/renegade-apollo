@@ -134,6 +134,8 @@
 
 #define FW_PATH L"\\SystemRoot\\System32\\drivers\\novatek_nt36675_j3s_fw01.bin"
 #define TAG 'tcpA'
+#define HOLD_REPEAT_100NS   (25ULL * 10000)     /* re-send held contacts every 25 ms */
+#define STUCK_LIFT_100NS    (3000ULL * 10000)   /* lift a contact after 3 s without any chip-signalled frame */
 
 /* ---------- HID: a 10-finger touchscreen (parallel mode), report 1; feature 2 = contact count maximum ---------- */
 #define RID_TOUCH 1
@@ -183,7 +185,8 @@ typedef struct {
     KEVENT Stop;
     PUCHAR Se, Gcc, Tlmm, North;
     PUCHAR TileVa[3];
-    ULONG Errors, Active, PollMs, SpiDiv, StartDelayMs, Reports, TopRows;
+    ULONG Errors, Active, PollMs, SpiDiv, StartDelayMs, Reports, TopRows, Stale;
+    ULONGLONG LastSubmit, LastFresh;
     LONG X[TOUCH_MAX_FINGERS], Y[TOUCH_MAX_FINGERS];
     PUCHAR Fw;
     ULONG FwSize;
@@ -686,11 +689,15 @@ static VOID Submit(TOUCH_CTX *c, ULONG Now)
     p.reportBufferLen = sizeof(r);
     p.reportId = RID_TOUCH;
     (void)VhfReadReportSubmit(c->Vhf, &p);
+    c->LastSubmit = KeQueryInterruptTime();
 }
 
 /* NT36xxx event buffer, 6 bytes a finger: [0] id << 3 | status (1 down, 2 move), [1] x 11:4, [2] y 11:4,
  * [3] x 3:0 << 4 | y 3:0 (Xiaomi nvt_ts_work_func, as ios-apollo's touch_parse_report). */
-static VOID Parse(TOUCH_CTX *c, const UCHAR *R)
+/* Fresh: the chip signalled this frame (IRQ edge/level, or no IRQ seen at all). A frame read only by the safety
+ * poll may not hold a finger that is down but still (that turned a long press into a tap), so it may move and add
+ * contacts but never lifts one; lifts come from signalled frames, or after STUCK_LIFT_100NS without any. */
+static VOID Parse(TOUCH_CTX *c, const UCHAR *R, BOOLEAN Fresh)
 {
     BOOLEAN any = FALSE, changed = FALSE;
     ULONG i, now = 0;
@@ -721,7 +728,16 @@ static VOID Parse(TOUCH_CTX *c, const UCHAR *R)
             changed = TRUE;
         }
     }
-    if (changed || now != c->Active) {
+    if (!Fresh && (c->Active & ~now)) {
+        if (KeQueryInterruptTime() - c->LastFresh < STUCK_LIFT_100NS) {
+            if ((++c->Stale % 50) == 1)
+                Note(L"Stale", "%lu safety-poll frames without a held finger ignored", c->Stale);
+            now |= c->Active;           /* keep the held contacts where they are */
+        }
+    }
+    if (Fresh)
+        c->LastFresh = KeQueryInterruptTime();
+    if (changed || now != c->Active || (Fresh && now)) {
         Submit(c, now);
         c->Reports++;
         if (c->Reports == 1 || (c->Reports % 500) == 0)
@@ -813,7 +829,7 @@ static VOID Worker(PVOID Context)
         }
         if (edge || level || edges == 0 || idle >= 12) {
             if (NvtRead(c, NVT_EVENT_BUF_ADDR, report, sizeof(report)) == 0) {
-                Parse(c, report);
+                Parse(c, report, (BOOLEAN)(edge || level || edges == 0));
                 idle = 0;
             } else {
                 idle++;
@@ -821,6 +837,8 @@ static VOID Worker(PVOID Context)
         } else {
             idle++;
         }
+        if (c->Active && KeQueryInterruptTime() - c->LastSubmit >= HOLD_REPEAT_100NS)
+            Submit(c, c->Active);       /* a still finger keeps being reported, as a digitizer scanning would */
         if (WaitMs(c, c->Errors > 10 ? 1000 : c->PollMs))
             break;
     }
