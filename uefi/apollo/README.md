@@ -191,6 +191,19 @@ python3 patch-qcpep-lmh.py qcpep8250.sys qcpep8250-lmhfix.sys
 powershell -ExecutionPolicy Bypass -File sign-install-qcpep.ps1 -Sys .\qcpep8250-lmhfix.sys -WindowsDrive W: -EspDrive S: -DebugOff
 ```
 
+### After the LMh patch: SOC_SUBSYSTEM_FAILURE from qcpep (display RSC has 2 TCS)
+With the LMh-patched qcpep (Mu-Silicium firmware), AddDevice completes and Windows stops with `0x14B` from
+`qcpep8250+0x101f34` (its fatal routine; empty message, P2-P4 zero), called from `+0x111444` during
+`SelfManagedIoInit`. That function checks qcpep's two RPMh RSCs via `RSC_DRV_PRNT_CHLD_CONFIG` (+0xC):
+
+| RSC | reads | NCPT | TCS | qcpep minimum |
+| --- | --- | --- | --- | --- |
+| APPS DRV2 `0x18220000` | `0x800C8104` | 16 | 8 | 8 (passes) |
+| display `0x0AF20000` | `0x80000002` | 16 | **2** | **4** (fails) |
+
+qcpep's own config for the display RSC expects 2 TCS; only the table minimum (`+0x19ff84`) is 4.
+`patch-qcpep-lmh.py` now also lowers it to 2.
+
 ### Debug: kernel debugger over USB (KDNET)
 edk2-msm's sm8250 build ships no DBG2 table, so Windows has no debug port. Qualcomm's Kona DBG2 (shipped
 unchanged by Silicium's pipa) describes KDNET over USB EEM on both USB controllers (port type `0x8003`,

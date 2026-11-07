@@ -9,7 +9,12 @@ AddDevice"). Three small functions touch the two LMh blocks (0x18350800 / 0x1835
   +0x5b20  writes LMh +8
   +0x5b88  writes LMh +0  (the write that hangs)
 
-Mapping the blocks (MmMapIoSpaceEx) does not touch the hardware and is left alone. LMh stays as the firmware
+Mapping the blocks (MmMapIoSpaceEx) does not touch the hardware and is left alone.
+
+Also: qcpep's RPMh RSC table (2 entries at +0x19ff10, 0x50 bytes each) requires the display RSC (0x0AF20000,
+entry 1) to report >= 4 TCS in RSC_DRV_PRNT_CHLD_CONFIG (+0xC). apollo's reads 0x80000002 (2 TCS; NCPT 16), so
+qcpep's start-up check (+0x111330) calls its fatal routine: SOC_SUBSYSTEM_FAILURE (0x14B) with an empty message.
+qcpep's own config for that RSC expects 2; the entry's minimum (+0x24) is lowered from 4 to 2. LMh stays as the firmware
 configured it (hardware throttling still runs; qcpep just does not change it).
 
 Only qcpep8250.sys 1.0.2140.0 from WOA-Project/windows_silicon_qcom_kona is accepted (checked by SHA-256 and by
@@ -28,6 +33,11 @@ PATCHES = {                                            # RVA -> instruction expe
     0x5520: bytes.fromhex("fd7bbda9"),                 # stp x29, x30, [sp, #-0x30]!
     0x5b20: bytes.fromhex("fd7bbea9"),                 # stp x29, x30, [sp, #-0x20]!
     0x5b88: bytes.fromhex("fd7bbda9"),                 # stp x29, x30, [sp, #-0x30]!
+}
+
+
+DATA_PATCHES = {                                       # RVA -> (expected, new)
+    0x19ff10 + 0x50 + 0x24: (struct.pack("<I", 4), struct.pack("<I", 2)),   # display RSC: minimum TCS 4 -> 2
 }
 
 
@@ -75,6 +85,12 @@ def main():
             sys.exit("unexpected instruction at +%#x; not patching" % rva)
         d[off:off + 4] = RET
         print("+%#x (file %#x): ret" % (rva, off))
+    for rva, (expected, new) in DATA_PATCHES.items():
+        off = rva_to_offset(d, rva)
+        if d[off:off + len(expected)] != expected:
+            sys.exit("unexpected data at +%#x; not patching" % rva)
+        d[off:off + len(new)] = new
+        print("+%#x (file %#x): display RSC minimum TCS 4 -> 2" % (rva, off))
 
     pe = struct.unpack_from("<I", d, 0x3C)[0]
     opt = pe + 24
