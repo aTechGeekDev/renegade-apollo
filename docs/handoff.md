@@ -2,7 +2,7 @@
 
 > **2026-11-07 update: Windows 11 24H2 boots to the desktop on apollo, USB host works.** Working combination:
 > Mu-Silicium firmware with `mu/apolloPkg` (alioth binaries) + `mu/install-apollo.sh` defaults
-> (`--drop PRTC,PMAP --no-thermal --no-pep`, FB shifted 256 rows), booted with `fastboot boot Mu-apollo.img`;
+> (`--drop PRTC,PMAP --no-thermal --no-pep --touch`, full-screen framebuffer; FB_SHIFT=256 only for debugging), booted with `fastboot boot Mu-apollo.img`;
 > WOA-Project Kona pack in Windows, testsigning on. The decisive change was `--no-pep` (no PEP: qcpep cannot
 > run on SM8250; see uefi/apollo/README.md, "Decision: run without Qualcomm's PEP"). The qcpep patches are no
 > longer needed (qcpep never binds) but are still installed on the phone.
