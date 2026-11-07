@@ -5,6 +5,9 @@ on:
     paths: ['windrivers/**', '.github/workflows/drivers.yml']
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: windows-latest
@@ -27,3 +30,17 @@ jobs:
           path: |
             windrivers/out/*.sys
             windrivers/out/*.pdb
+      - name: Publish to the driver-builds branch (plain download links)
+        shell: pwsh
+        run: |
+          $sha = '${{ github.sha }}'.Substring(0, 7)
+          New-Item -ItemType Directory -Force pub | Out-Null
+          Copy-Item windrivers\out\*.sys pub\
+          Copy-Item windrivers\apollocpufreq\install-apollocpufreq.ps1 pub\
+          Get-FileHash pub\*.sys -Algorithm SHA256 | ForEach-Object { "$($_.Hash)  $(Split-Path $_.Path -Leaf)" } | Set-Content pub\SHA256SUMS
+          "built from $sha ($env:GITHUB_REF_NAME)" | Set-Content pub\BUILD.txt
+          cd pub
+          git init -q -b driver-builds
+          git config user.name 'github-actions'; git config user.email 'github-actions@users.noreply.github.com'
+          git add -A; git commit -q -m "drivers built from $sha"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" driver-builds
