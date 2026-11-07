@@ -1,16 +1,67 @@
 # Handoff: renegade-apollo (Windows on Mi 10T / apollo, SM8250)
 
-> **2026-11-07 update: Windows 11 24H2 boots to the desktop on apollo, USB host works.** Working combination:
-> Mu-Silicium firmware with `mu/apolloPkg` (alioth binaries) + `mu/install-apollo.sh` defaults
-> (`--drop PRTC,PMAP --no-thermal --no-pep --touch`, full-screen framebuffer; FB_SHIFT=256 only for debugging), booted with `fastboot boot Mu-apollo.img`;
-> WOA-Project Kona pack in Windows, testsigning on. The decisive change was `--no-pep` (no PEP: qcpep cannot
-> run on SM8250; see uefi/apollo/README.md, "Decision: run without Qualcomm's PEP"). The qcpep patches are no
-> longer needed (qcpep never binds) but are still installed on the phone.
->
-> Own Windows drivers (`windrivers/`, built by `.github/workflows/drivers.yml`, published to the `driver-builds`
-> branch): `apollocpufreq` (EPSS CPU levels; install result not yet reported) and `apollotouch` (NT36675 touch,
-> KMDF + VHF, port of ios-apollo's sweet_touch.c; needs a UEFI built with `TOUCH=1` for `\_SB.TCH0`; untested on
-> the phone). Touch firmware comes from Xiaomi's apollo-q-oss ihex and is never committed.
+## Current state (latest; read this first)
+
+Branch `claude/busy-johnson-ghrd5y`, everything pushed. Windows 11 24H2 runs to the desktop on apollo from
+Mu-Silicium (`mu/apolloPkg`, alioth binaries), booted tethered with `fastboot boot Mu-apollo.img`; test-signing on;
+WOA-Project Kona pack installed. The decisive change was **no PEP** (`--no-pep`): Qualcomm's qcpep cannot run on
+SM8250 (uefi/apollo/README.md, "Decision: run without Qualcomm's PEP"), so every Qualcomm driver that needs PEP
+(UART, SPI, PCIe, audio, GPU, Wi-Fi) is out, and devices are driven by **our own drivers that touch the hardware
+directly**, ported from the user's ios-apollo repo (`~/ios-apollo` in the session; xnu/patches/*).
+
+### Build the UEFI (user's Kali VM)
+```
+cd ~/renegade-apollo && git pull
+LOGO=~/logo.img bash mu/install-apollo.sh        # defaults below
+cd ~/Mu-Silicium && python3 build_uefi.py -d apollo   (in its venv; CLANGPDB_AARCH64_PREFIX=aarch64-linux-gnu-)
+fastboot boot Mu-apollo.img
+```
+`install-apollo.sh` defaults: `DROP=PRTC,PMAP`, `--no-thermal`, `NO_PEP=1`, `TOUCH=1` (\_SB.TCH0, APLO0001),
+`BT=1` (\_SB.BTH0, APLO0002), `FB_SHIFT=0` (full screen; 256 only for reading bugcheck text under the camera hole),
+`LOGO=<dump of the phone's logo partition>` -> `make-boot-logo.py` crops the Mi logo into SiliciumPkg's BootLogo.bmp
+(local checkout only; `LOGO=silicium` restores). Logo dump: `adb shell dd if=/dev/block/by-name/logo of=/tmp/logo.img`
+then `adb pull` (from recovery). **Status: the TOUCH/BT/LOGO/FB_SHIFT=0 rebuild has not been reported back yet.**
+
+### Own Windows drivers (`windrivers/`)
+Built by `.github/workflows/drivers.yml` (windows-latest, WDK NuGet 10.0.26100.2454, KMDF 1.15) on every push to
+`windrivers/**`; published to branch **`driver-builds`** (raw: `https://raw.githubusercontent.com/aTechGeekDev/renegade-apollo/driver-builds/<file>`)
+with SHA256SUMS. Each build stamps `DriverVer 1.0.<run>.0` so pnputil replaces older installs (exit 259 = it kept the
+installed one). Installers test-sign with the self-made cert `CN=renegade-apollo test signing` and add it to
+LocalMachine Root/TrustedPublisher with **certutil** (Import-Certificate is refused there on this install).
+The user transfers zips to the phone and runs them from an Administrator PowerShell; progress of every driver is
+written as REG_SZ values under `HKLM\SYSTEM\CurrentControlSet\Services\<driver>\Parameters` (no debugger needed;
+each installer has `-Status` and `-Remove`).
+
+| Driver | What | Status on the phone |
+| --- | --- | --- |
+| `apollocpufreq` | legacy driver: EPSS domains 0x18591000/2000/3000, top LUT row <= `MaxMHz` | built; **not yet run/reported**. No thermal zones exist -> advise a cap (`-MaxMHz 1800`) until a governor with a TSENS limit (ios-apollo 0153) is ported |
+| `apollotouch` | NT36675 on QUP0 SE4 SPI 0x990000 (GCC clocks, gpio8-11, reset gpio38, IRQ gpio39 polled), firmware download from `System32\drivers\novatek_nt36675_j3s_fw01.bin` (installer converts Xiaomi's apollo-q-oss ihex, SHA-256 checked; never committed), HID via **VHF** (10-finger touchscreen) | **WORKS** (user: "touch working"). Was offset only because of FB_SHIFT=256 (fixed by FB_SHIFT=0; `TopRows` param exists for shifted builds). Long press registered as a tap -> fixed in 1.0.9.0 (safety-poll frames no longer lift contacts; held contacts re-sent every 25 ms); **1.0.9.0 not yet confirmed** |
+| `apollobt` | QCA6390 Bluetooth: RPMh votes (cmd-db 0x80860000; smpa6/smpa5/smpc8/ldoa16), BT_EN gpio21, SE6 UART 0x998000 (gpio16-19) polled, ROM check, phone's firmware `htbtfw20.tlv` + `htnv20.bin` (from its `bluetooth` partition; ios-apollo `tools/pull-bt-fw.sh`), UART to 921600, IBS; then a child PDO `apollobt\UART_H4` with compatible ID `MS_BTHX_BTHMINI` -> inbox BthMini (IOCTL_BTHX_*, bthxddi.h) | built (1.0.10.0, zip sent); **never run**. Params: `Steps` 1-5 (1-4 diagnostic only), `Baud`, `Address` (REG_BINARY 6). If Windows hangs after install: boot a UEFI built with `BT=0` |
+
+### Wi-Fi (researched, not started)
+Qualcomm's Kona `qcwlan8250` binds QCMS (subsystem/PEP stack): unusable. **Lead:** WOA-Project/Qualcomm-Reference-Drivers
+`8180_CLS/*/qcwlan6800sc8180.cab` is an ARM64 NDIS driver for **PCI\VEN_17CB&DEV_1101&SUBSYS_010817CB** (QCA6390)
+with its firmware, no PEP dependency. Needed first, all untested: chip power + WLAN_EN gpio20 (ios-apollo
+`sweet_rpmh_wifi_power`, 0126 sweet_wifi.c), PCIe0 PHY/link (ios-apollo 0126 sweet_pcie*), ECAM mode for pci.sys
+(SM8250 = DWC cfg_1_9_0, which has PARF_ECAM_BASE + outbound blocker, see Linux pcie-qcom.c) + PCI0/MCFG in ACPI,
+an identity SMMU context for stream 0x1c01, interrupts (MSI via GIC 0x17a10040 SPI 768+, or INTx) - the main unknown;
+apollo's subsystem ID must match the INF (else edit + re-catalog). Plan offered to the user: staged driver that only
+powers the chip, brings the link up and reports IDs. Meanwhile: USB Ethernet / USB tethering (USB host works).
+Also found: alioth's `qcfakepep` (stub PEP, github.com/18934020489Xx/alioth-woa-drivers) reportedly unlocks the
+audio chain; WOA-Kona/Drivers has MIT GPIO/SPMI/PMIC drivers. Silicium's status lists alioth Windows BT/speakers/sensors working.
+
+### Open items / what the user is waiting on
+1. Results: rebuilt UEFI (logo, full screen, TCH0+BTH0), touch 1.0.9.0 long press, apollobt install output, apollocpufreq + winsat.
+2. User asked about Windows Update: advised OK with driver updates blocked (ExcludeWUDriversInQualityUpdate=1,
+   SearchOrderConfig=0), restore point, full battery, no max-clock cpufreq, skip feature updates, re-`fastboot boot` on each restart.
+3. ios-apollo ports still possible: CPU governor + TSENS thermal limit (0153, safety), WLED brightness (0151/0154),
+   battery PM8150B (0182, unproven), buttons (ask user if they work), PMIC RTC (0181), torch.
+4. Firmware flashing (permanent boot) stays last, per the user.
+
+Rules the user set: short copy-pasteable steps, say what is proven vs guessed, ask before turning the debugger on,
+confirm destructive steps; never commit device dumps or vendor firmware (touch fw, BT fw, logo, Wi-Fi fw).
+
+---
 
 Written 2026-11-07 by the session that continued after the original one hit its limit. Branch:
 `claude/busy-johnson-ghrd5y` (all work below is pushed there). Read this, `git pull`, then
