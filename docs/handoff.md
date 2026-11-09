@@ -38,6 +38,14 @@ each installer has `-Status` and `-Remove`).
 | `apollotouch` | NT36675 on QUP0 SE4 SPI 0x990000 (GCC clocks, gpio8-11, reset gpio38, IRQ gpio39 polled), firmware download from `System32\drivers\novatek_nt36675_j3s_fw01.bin` (installer converts Xiaomi's apollo-q-oss ihex, SHA-256 checked; never committed), HID via **VHF** (10-finger touchscreen) | **WORKS** (user: "touch working"). Was offset only because of FB_SHIFT=256 (fixed by FB_SHIFT=0; `TopRows` param exists for shifted builds). Long press registered as a tap -> fixed in 1.0.9.0 (safety-poll frames no longer lift contacts; held contacts re-sent every 25 ms); **long press confirmed working** |
 | `apollobt` | QCA6390 Bluetooth: RPMh votes (cmd-db 0x80860000; smpa6/smpa5/smpc8/ldoa16), BT_EN gpio21, SE6 UART 0x998000 (gpio16-19) polled, ROM check, phone's firmware `htbtfw20.tlv` + `htnv20.bin` (from its `bluetooth` partition; ios-apollo `tools/pull-bt-fw.sh`), UART to 921600, IBS; then a child PDO `apollobt\UART_H4` with compatible ID `MS_BTHX_BTHMINI` -> inbox BthMini (IOCTL_BTHX_*, bthxddi.h) | built (1.0.10.0, zip sent); **never run**. Params: `Steps` 1-5 (1-4 diagnostic only), `Baud`, `Address` (REG_BINARY 6). If Windows hangs after install: boot a UEFI built with `BT=0` |
 
+### GPU (milestone 1 built, not yet run on the phone)
+`windrivers/apollogpu` (legacy demand-start driver, armasm64 part): ios-apollo's sweet_gpu_probe steps 1-22 + teardown,
+hardware sequence compared mechanically with the XNU source (71 register writes in order, ring/HFI/SCM identical).
+Built by CI run 11 (`apollogpu.sys` on driver-builds). Run: `install-apollogpu.ps1 -Firmware <research/apollo-gpu> -Run`;
+success = three bands on screen + "A PICTURE DRAWN BY THE GPU IS ON THE PANEL"; log in Parameters\Log (`-Status`).
+Next (milestone 2): keep the GPU on (ios-apollo kept mode + SweetAccelerator msm-DRM subset over DeviceIoControl),
+then Mesa Turnip/freedreno for Windows ARM64 with the sweet-drm shim.
+
 ### Wi-Fi (researched, not started)
 Qualcomm's Kona `qcwlan8250` binds QCMS (subsystem/PEP stack): unusable. **Lead:** WOA-Project/Qualcomm-Reference-Drivers
 `8180_CLS/*/qcwlan6800sc8180.cab` is an ARM64 NDIS driver for **PCI\VEN_17CB&DEV_1101&SUBSYS_010817CB** (QCA6390)
