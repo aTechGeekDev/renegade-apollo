@@ -2,6 +2,7 @@
 # Output: windrivers\out\<name>.sys (+ .inf/.cat for PnP drivers)
 #   apollocpufreq - legacy (non-PnP) WDM driver
 #   apollotouch   - KMDF 1.15 PnP driver + Virtual HID Framework, with an INF and an Inf2Cat catalog
+#   apollogpu     - legacy (non-PnP) WDM driver with an ARM64 assembly part (<name>_asm.asm, armasm64)
 $ErrorActionPreference = 'Stop'
 $Root = $PSScriptRoot
 $Pkg = Join-Path $Root 'packages'
@@ -11,7 +12,9 @@ New-Item -ItemType Directory -Force -Path $Out, (Join-Path $Root 'obj') | Out-Nu
 $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -property installationPath
 $msvc = (Get-ChildItem "$vs\VC\Tools\MSVC" -Directory | Sort-Object Name -Descending | Select-Object -First 1).FullName
 $cl = "$msvc\bin\Hostx64\arm64\cl.exe"; $link = "$msvc\bin\Hostx64\arm64\link.exe"
+$armasm = "$msvc\bin\Hostx64\arm64\armasm64.exe"
 if (-not (Test-Path $cl)) { throw "no ARM64 cross compiler under $msvc" }
+if (-not (Test-Path $armasm)) { throw "no armasm64 under $msvc" }
 
 $wdk = (Get-ChildItem "$Pkg\Microsoft.Windows.WDK.ARM64*" -Directory | Select-Object -First 1).FullName
 $ntddk = Get-ChildItem $wdk -Recurse -Filter ntddk.h | Select-Object -First 1
@@ -37,7 +40,8 @@ $drivers = @(
        Libs = @("/LIBPATH:`"$($kmdfLib.DirectoryName)`"", 'WdfDriverEntry.lib', 'WdfLdr.lib', 'vhfkm.lib', 'hal.lib', 'libcntpr.lib') },   # libcntpr: vhfkm.lib's _Interlocked* / __security_push_cookie
     @{ Name = 'apollobt'; Entry = 'FxDriverEntry'; Inc = @($kmdfInc.FullName)
        Defs = @('/wd4324', '/DKMDF_VERSION_MAJOR=1', "/DKMDF_VERSION_MINOR=$($kmdfVer.Split('.')[1])")
-       Libs = @("/LIBPATH:`"$($kmdfLib.DirectoryName)`"", 'WdfDriverEntry.lib', 'WdfLdr.lib', 'hal.lib', 'libcntpr.lib') }
+       Libs = @("/LIBPATH:`"$($kmdfLib.DirectoryName)`"", 'WdfDriverEntry.lib', 'WdfLdr.lib', 'hal.lib', 'libcntpr.lib') },
+    @{ Name = 'apollogpu'; Entry = 'DriverEntry'; Inc = @(); Defs = @(); Libs = @('hal.lib'); Asm = $true }
 )
 
 foreach ($d in $drivers) {
@@ -48,9 +52,15 @@ foreach ($d in $drivers) {
         "`"$(Join-Path $Root "$name\$name.c")`"" |
         Set-Content (Join-Path $Root "obj\$name.cl.rsp") -Encoding ASCII
     & $cl "@$(Join-Path $Root "obj\$name.cl.rsp")"; if ($LASTEXITCODE) { throw "cl $name" }
+    $objs = @("`"$obj`"")
+    if ($d.Asm) {
+        $aobj = Join-Path $Root "obj\${name}_asm.obj"
+        & $armasm -nologo -o $aobj (Join-Path $Root "$name\${name}_asm.asm"); if ($LASTEXITCODE) { throw "armasm64 $name" }
+        $objs += "`"$aobj`""
+    }
     @('/nologo', "/OUT:`"$Out\$name.sys`"", '/MACHINE:ARM64', '/SUBSYSTEM:NATIVE,10.00', '/DRIVER', "/ENTRY:$($d.Entry)",
       '/NODEFAULTLIB', '/RELEASE', '/DEBUG', "/PDB:`"$Out\$name.pdb`"", "/LIBPATH:`"$kmLib`"") + $d.Libs +
-        @('ntoskrnl.lib', 'BufferOverflowFastFailK.lib', "`"$obj`"") |
+        @('ntoskrnl.lib', 'BufferOverflowFastFailK.lib') + $objs |
         Set-Content (Join-Path $Root "obj\$name.link.rsp") -Encoding ASCII
     & $link "@$(Join-Path $Root "obj\$name.link.rsp")"; if ($LASTEXITCODE) { throw "link $name" }
     Get-Item "$Out\$name.sys" | Select-Object Name, Length | Out-Host

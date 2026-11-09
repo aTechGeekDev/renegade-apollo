@@ -44,7 +44,7 @@ jobs:
           $sha = '${{ github.sha }}'.Substring(0, 7)
           New-Item -ItemType Directory -Force pub | Out-Null
           Copy-Item windrivers\out\*.sys, windrivers\out\*.inf, windrivers\out\*.cat pub\
-          Copy-Item windrivers\apollocpufreq\install-apollocpufreq.ps1, windrivers\apollotouch\install-apollotouch.ps1, windrivers\apollobt\install-apollobt.ps1 pub\
+          Copy-Item windrivers\apollocpufreq\install-apollocpufreq.ps1, windrivers\apollotouch\install-apollotouch.ps1, windrivers\apollobt\install-apollobt.ps1, windrivers\apollogpu\install-apollogpu.ps1 pub\
           Get-FileHash pub\*.sys, pub\*.cat -Algorithm SHA256 | ForEach-Object { "$($_.Hash)  $(Split-Path $_.Path -Leaf)" } | Set-Content pub\SHA256SUMS
           "built from $sha ($env:GITHUB_REF_NAME)" | Set-Content pub\BUILD.txt
           cd pub
