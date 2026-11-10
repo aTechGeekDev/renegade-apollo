@@ -1290,7 +1290,8 @@ static bool smmu_install(void)
     }
     printf("SWEET WIFI: THE RADIO'S STREAM %#x GOES THROUGH SMMU CONTEXT %u: RAM %#x:%#x..%#x:%#x 1:1, MSI frame %#x\n",
            RADIO_STREAM, rs.context, (uint32_t)(RADIO_RAM_START >> 32), (uint32_t)RADIO_RAM_START,
-           (uint32_t)((RADIO_RAM_END - 1) >> 32), (uint32_t)(RADIO_RAM_END - 1), (uint32_t)RADIO_MSI_PAGE);
+           (uint32_t)((RADIO_RAM_END - 1) >> 32), (uint32_t)((RADIO_RAM_END - 1) & 0xffffffffull),
+           (uint32_t)RADIO_MSI_PAGE);
     smmu_faults("installed");
     return true;
 }
