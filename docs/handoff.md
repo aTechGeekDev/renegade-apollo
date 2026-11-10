@@ -46,20 +46,35 @@ success = three bands on screen + "A PICTURE DRAWN BY THE GPU IS ON THE PANEL"; 
 Next (milestone 2): keep the GPU on (ios-apollo kept mode + SweetAccelerator msm-DRM subset over DeviceIoControl),
 then Mesa Turnip/freedreno for Windows ARM64 with the sweet-drm shim.
 
-### Wi-Fi (researched, not started)
-Qualcomm's Kona `qcwlan8250` binds QCMS (subsystem/PEP stack): unusable. **Lead:** WOA-Project/Qualcomm-Reference-Drivers
-`8180_CLS/*/qcwlan6800sc8180.cab` is an ARM64 NDIS driver for **PCI\VEN_17CB&DEV_1101&SUBSYS_010817CB** (QCA6390)
-with its firmware, no PEP dependency. Needed first, all untested: chip power + WLAN_EN gpio20 (ios-apollo
-`sweet_rpmh_wifi_power`, 0126 sweet_wifi.c), PCIe0 PHY/link (ios-apollo 0126 sweet_pcie*), ECAM mode for pci.sys
-(SM8250 = DWC cfg_1_9_0, which has PARF_ECAM_BASE + outbound blocker, see Linux pcie-qcom.c) + PCI0/MCFG in ACPI,
-an identity SMMU context for stream 0x1c01, interrupts (MSI via GIC 0x17a10040 SPI 768+, or INTx) - the main unknown;
-apollo's subsystem ID must match the INF (else edit + re-catalog). Plan offered to the user: staged driver that only
-powers the chip, brings the link up and reports IDs. Meanwhile: USB Ethernet / USB tethering (USB host works).
-Also found: alioth's `qcfakepep` (stub PEP, github.com/18934020489Xx/alioth-woa-drivers) reportedly unlocks the
-audio chain; WOA-Kona/Drivers has MIT GPIO/SPMI/PMIC drivers. Silicium's status lists alioth Windows BT/speakers/sensors working.
+### Wi-Fi (stage 1 driver built, not yet run on the phone)
+Target: Windows' inbox pci.sys + Qualcomm's ARM64 NDIS driver `qcwlan6800sc8180` (WOA-Project/Qualcomm-Reference-Drivers
+`8180_CLS/*/qcwlan6800sc8180.cab`, binds **PCI\VEN_17CB&DEV_1101&SUBSYS_010817CB**, ships its firmware, no PEP).
+Kona's `qcwlan8250` binds QCMS (subsystem/PEP stack): unusable. Research: `research_notes/.../wifi.md`, report in `reports/`.
+
+`windrivers/apollowifi` (legacy demand-start, asm part, registry log exactly as apollogpu; no UEFI rebuild needed):
+| Step | What | Source |
+| --- | --- | --- |
+| 1 | read-only GCC/TLMM survey | ios-apollo sweet_wifi.c |
+| 2 | RPMh rails (smpa4/6/5, smpc8, ldoa9/5), WLAN_EN gpio20, PCIe0 clocks, 99-entry PHY table, link Gen2 x1, endpoint 17cb:1101, **subsystem ID**, capabilities (MSI/PM/PCIe), MHI/BHI registers, apps SMMU survey | ios-apollo sweet_pcie.c / sweet_rpmh.c, sequence unchanged (proven under XNU) |
+| 3 | **ECAM for pci.sys** as Qualcomm's Kona MCFG has it (segment 0 at 0x60000000): iATU 0 = CFG0 + CFG-shift for bus 1 (0x60100000, 1 MiB), iATU 1 = memory window 0x60200000..0x61feffff 1:1 (PCI0 _CRS), ECAM blocker (PARF 0x380 base, 0x360/0x370 ranges = 0x60008000..0x600fffff, SYS_CTRL bit 26); then reads 00:00.0, 01:00.0, 00:01.0, 00:1f.7 (and 01:01.0 with Deep) | new (Linux dw_pcie_config_ecam_iatu + pcie-qcom.c registers); **the blocker's "all-ones" answer is an assumption** |
+| 4 | apps SMMU context for stream 0x1c01 with **identity tables** (1 GiB blocks 2..16 GiB, MSI frame 0x17a10000 as device page), BDF-to-SID route + translation on, read-back; restored afterwards | ios-apollo smmu_install/restore; tables new |
+Run: `install-apollowifi.ps1 -Run` (steps 1..2), then `-Run -Steps 4`; `-Status`; `-Keep` leaves everything up. Parameters: Steps, Keep, Deep.
+
+Stage 2 (after the phone results): a PnP version on a new ACPI device (WIF0, APLO0003) that does steps 2-4 at start
+and keeps them; PCI0 (PNP0A08, _CRS 0x60200000+0x1df0000, bus 0-1, _PRT INTA-D = GSIV 0xB5-0xB8) + Kona MCFG back
+in the tables with `_DEP` on WIF0 so pci.sys scans only after the link is up; then install qcwlan6800sc8180 (INF line
+for apollo's subsystem ID if it differs; `bd_j3sgl.elf` as board file). Open: MSI through the MADT's GIC MSI frame
+(0x17a10000, SPI base 832 in Kona's APIC) vs INTx; pci.sys power management (ASPM/D3: keep off via _OSC).
+
+### Audio (plan; nothing built yet)
+Own stack, port of ios-apollo: `sweet_adsp.c` (3409 lines: ADSP loaded through TrustZone PAS with the phone's own
+adsp.mdt/.bNN, SMEM/SMP2P/GLINK/QRTR/APR, 11 steps), `sweet_cs35l41.c` (2001), `sweet_audio*.c`, then a Windows
+audio miniport. Its OS surface is small (locks, threads, file read, kalloc, ml_io_map, 3 asm sites: ldr/str, dc
+civac, smc), so the port is the same shim approach as apollogpu. First stage = "DSP up and linked" (steps 1-11).
+USB DAC and Bluetooth A2DP (apollobt) are the audio that can work before that.
 
 ### Open items / what the user is waiting on
-1. Results: logo, touch long press and apollocpufreq confirmed (2026-11-07). Still open: apollobt install output (next test).
+1. Results: logo, touch long press and apollocpufreq confirmed (2026-11-07). Still open, all three built and waiting for a phone run: apollobt install output, apollogpu milestone 1 (`-Run`), apollowifi (`-Run`, then `-Run -Steps 4`).
 2. User asked about Windows Update: advised OK with driver updates blocked (ExcludeWUDriversInQualityUpdate=1,
    SearchOrderConfig=0), restore point, full battery, no max-clock cpufreq, skip feature updates, re-`fastboot boot` on each restart.
 3. ios-apollo ports still possible: CPU governor + TSENS thermal limit (0153, safety), WLED brightness (0151/0154),
