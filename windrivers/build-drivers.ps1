@@ -3,6 +3,7 @@
 #   apollocpufreq - legacy (non-PnP) WDM driver
 #   apollotouch   - KMDF 1.15 PnP driver + Virtual HID Framework, with an INF and an Inf2Cat catalog
 #   apollogpu     - legacy (non-PnP) WDM driver with an ARM64 assembly part (<name>_asm.asm, armasm64)
+#   apollowifi    - as apollogpu: legacy driver with an assembly part (PCIe0 / QCA6390 bring-up, stage 1)
 $ErrorActionPreference = 'Stop'
 $Root = $PSScriptRoot
 $Pkg = Join-Path $Root 'packages'
@@ -41,7 +42,8 @@ $drivers = @(
     @{ Name = 'apollobt'; Entry = 'FxDriverEntry'; Inc = @($kmdfInc.FullName)
        Defs = @('/wd4324', '/DKMDF_VERSION_MAJOR=1', "/DKMDF_VERSION_MINOR=$($kmdfVer.Split('.')[1])")
        Libs = @("/LIBPATH:`"$($kmdfLib.DirectoryName)`"", 'WdfDriverEntry.lib', 'WdfLdr.lib', 'hal.lib', 'libcntpr.lib') },
-    @{ Name = 'apollogpu'; Entry = 'DriverEntry'; Inc = @(); Defs = @(); Libs = @('hal.lib'); Asm = $true }
+    @{ Name = 'apollogpu'; Entry = 'DriverEntry'; Inc = @(); Defs = @(); Libs = @('hal.lib'); Asm = $true },
+    @{ Name = 'apollowifi'; Entry = 'DriverEntry'; Inc = @(); Defs = @(); Libs = @('hal.lib'); Asm = $true }
 )
 
 foreach ($d in $drivers) {
