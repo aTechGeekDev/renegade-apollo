@@ -683,11 +683,14 @@ static int outbound(unsigned index, uint32_t type, uint32_t control2, uint32_t s
 /* Hold the endpoint in reset. Rail/clock votes remain until hardware reset; shared supplies are never disabled. */
 static void sweet_pcie_quiesce(void)
 {
-    uint32_t command = rd(CONF + 4);
-    /* Bus mastering is never enabled by this driver; if somebody did, stop it before reset. */
-    if (pcie_enumerated && command != UINT32_MAX && (command & 4)) {
-        wr(CONF + 4, (command & 0xffff) & ~4u);
-        wr(DBI + 4, 2);
+    /* Bus mastering is never enabled by this driver; if somebody did, stop it before reset. The endpoint is
+     * read only once it has answered (after a failed enumeration its clocks or link may not be there). */
+    if (pcie_enumerated) {
+        uint32_t command = rd(CONF + 4);
+        if (command != UINT32_MAX && (command & 4)) {
+            wr(CONF + 4, (command & 0xffff) & ~4u);
+            wr(DBI + 4, 2);
+        }
     }
     (void)gpio_output(79, false, 1);
     delay(1000); /* PERST propagation before the SMMU can be restored. */
